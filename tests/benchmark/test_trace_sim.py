@@ -157,3 +157,25 @@ def test_detection_stats_counts_lead_and_recall():
     assert d["kills"] == 1 and d["caught"] == 1
     assert d["mean_lead_s"] == pytest.approx(2 * STEP)
     assert d["alarms"] == 1 and d["precision"] == 1.0
+
+
+def test_hybrid_runs_periodic_timer_and_signal_together():
+    f = make_fleet(100, spikes=[(0, 6)], risk={(0, 4): 0.01})
+    pol = Policy("h", "hybrid", tau=600.0, signal="risk", thr=0.005, action="migrate")
+    out = run(f, pol)
+    assert out["avoided"] == 1 and out["kills"] == 0
+    assert out["n_ckpt"] >= 2  # periodic checkpoints plus the migration
+
+
+def test_synthetic_predictor_with_full_recall_avoids_every_kill():
+    f = make_fleet(100, spikes=[(0, 8), (0, 11)])
+    pol = Policy("s", "synthetic", thr=1.0, fa=0.0, action="migrate")
+    out = run(f, pol)
+    assert out["kills"] == 0 and out["avoided"] == 2
+
+
+def test_synthetic_predictor_with_zero_recall_avoids_nothing():
+    f = make_fleet(100, spikes=[(0, 8)])
+    pol = Policy("s", "synthetic", thr=0.0, fa=0.0, action="migrate")
+    out = run(f, pol)
+    assert out["kills"] == 1 and out["avoided"] == 0

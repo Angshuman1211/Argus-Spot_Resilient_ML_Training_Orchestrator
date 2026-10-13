@@ -111,11 +111,12 @@ def build_fleet(trace, nodes, split):
 @dataclass
 class Policy:
     name: str
-    kind: str                    # none | periodic | reactive | signal | oracle | random
-    tau: float = 0.0             # periodic interval (s of compute between checkpoints)
-    signal: str = "risk"         # risk | vol   (kind == signal)
-    thr: float = INF             # alarm threshold, or per-node-step probability (random)
+    kind: str                    # none | periodic | reactive | signal | hybrid | oracle | random | synthetic
+    tau: float = 0.0             # periodic interval (s of compute); also active for kind == hybrid
+    signal: str = "risk"         # risk | vol   (kind == signal | hybrid)
+    thr: float = INF             # alarm threshold; per-node-step probability (random); recall (synthetic)
     action: str = "migrate"      # ckpt | migrate
+    fa: float = 0.0              # synthetic: false-alarm probability per node-step
 
 
 def young_daly_tau(C, mtbf):
@@ -176,7 +177,7 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
     while True:
         cands = [next_dec]
         cands.append(t + (W - work) if mode == "run" else mode_end)
-        if pol.kind == "periodic" and mode == "run":
+        if pol.tau > 0 and mode == "run":
             cands.append(max(t, last_ckpt_start + pol.tau))
         if ni < len(notice_times) and mode == "run":
             cands.append(max(t, notice_times[ni]))
@@ -252,14 +253,20 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
                     out["dropped"] += 1
 
         # 5. periodic timer
-        if pol.kind == "periodic" and mode == "run" and t >= last_ckpt_start + pol.tau - 1e-9:
+        if pol.tau > 0 and mode == "run" and t >= last_ckpt_start + pol.tau - 1e-9:
             start_ckpt()
 
 
 def _alarmed(fleet, pol, i, t, last_alarm, cooldown, rng):
-    if pol.kind == "signal":
+    if pol.kind in ("signal", "hybrid"):
         sig = fleet.risk if pol.signal == "risk" else fleet.vol
         hit = sig[:, i] > pol.thr
+    elif pol.kind == "synthetic":
+        # a predictor with a chosen recall and false-alarm rate, 10 minutes of lead:
+        # shows how good a predictor must be before it pays, independent of this model
+        hit = rng.random(fleet.n) < pol.fa
+        if i + 2 < fleet.L:
+            hit = hit | (fleet.spike[:, i + 2] & (rng.random(fleet.n) < pol.thr))
     elif pol.kind == "random":
         hit = rng.random(fleet.n) < pol.thr
     elif pol.kind == "oracle":
