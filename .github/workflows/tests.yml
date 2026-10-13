@@ -16,8 +16,8 @@ jobs:
       - name: Install
         run: |
           pip install -r operator/requirements.txt
-          pip install pytest numpy pandas scikit-learn
-      # Tests that need torch or the gitignored model artifacts skip themselves
-      # (pytest.importorskip / skip), so this stays a fast, dependency-light check.
+          pip install pytest numpy pandas scikit-learn xgboost-cpu fastapi httpx pydantic boto3
+      # Tests that need torch or the gitignored legacy model artifacts skip themselves
+      # (pytest.importorskip / skip). The predictor and API tests build their own tiny model.
       - name: Run tests
         run: python -m pytest tests -q
