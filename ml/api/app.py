@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import joblib
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 # Add the model directory to sys.path so we can import the model class
@@ -15,7 +16,14 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../mode
 from transformer import SpotInterruptionPredictor
 from feature_config import FEATURE_COLUMNS, SEQ_LENGTH
 
-app = FastAPI(title="Argus Spot Prediction Service")
+@asynccontextmanager
+async def lifespan(_app):
+    _load_model()
+    _load_features()
+    yield
+
+
+app = FastAPI(title="Argus Spot Prediction Service", lifespan=lifespan)
 
 # Configuration
 S3_BUCKET = os.getenv("S3_BUCKET", "argus-models")
@@ -128,11 +136,6 @@ def _load_features():
     except Exception as e:
         print(f"Error loading features: {e}")
         feature_cache = {}
-
-@app.on_event("startup")
-async def startup_event():
-    _load_model()
-    _load_features()
 
 @app.get("/health")
 def health_check():
