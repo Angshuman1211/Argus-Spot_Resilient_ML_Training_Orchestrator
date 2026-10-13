@@ -1,0 +1,15 @@
+\begin{tabular}{lrrrrr}
+\toprule
+& \multicolumn{3}{c}{Boosted trees} & \multicolumn{2}{c}{Transformer} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-6}
+Features & Lift & AUROC & Hour-end AUROC & Lift & AUROC \\
+\midrule
+13 base features & 14.8 & 0.946 & 0.802 & 9.8 & 0.870 \\
++ cross-AZ price divergence & 15.3 & 0.945 & 0.802 & 10.8 & 0.876 \\
++ Spot Advisor interruption rate & 14.4 & 0.944 & 0.806 & 9.9 & 0.869 \\
++ update cadence & 26.7 & 0.966 & 0.867 & 21.6 & 0.943 \\
++ price extremes & 48.5 & 0.972 & 0.920 & 35.5 & 0.949 \\
+all 19 features & 93.2 & 0.978 & 0.936 & 50.3 & 0.960 \\
+all 28 features & 99.3 & 0.981 & 0.941 & &  \\
+\bottomrule
+\end{tabular}
