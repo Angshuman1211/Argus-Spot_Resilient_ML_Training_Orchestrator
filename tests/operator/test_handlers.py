@@ -14,7 +14,7 @@ from controller import handlers  # noqa: E402
 CKPT = "s3://bucket/checkpoints/job"
 
 
-def _spec(threshold=0.0015):
+def _spec(threshold=0.05):
     return {
         "image": "img",
         "checkpointPath": CKPT,

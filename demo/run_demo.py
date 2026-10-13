@@ -1,11 +1,14 @@
 """
-Local live demo of Argus: starts the real prediction API, scores every instance/AZ pair,
-then prints the headline trace-benchmark results (read from benchmark/results/trace/summary.csv).
+Local live demo of Argus: starts the real prediction API, scores every instance/AZ pair, then
+prints the headline results of the trace-driven benchmark.
 
-    python demo/run_demo.py            # full walkthrough, pauses between steps
-    python demo/run_demo.py --no-pause # for recording or CI
+    python demo/run_demo.py             # full walkthrough, pauses between steps
+    python demo/run_demo.py --no-pause  # for recording or CI
+    python demo/run_demo.py --live      # fetch fresh prices from EC2 (needs AWS credentials)
 
-No AWS access needed: the model, scaler, calibrator and feature history are all local.
+Without --live it scores a small committed price snapshot (demo/price_snapshot.csv), so no AWS
+access is needed. The model is local (ml/model/final). Scores computed on an old snapshot are
+for show only: the features forward-fill the last known price up to "now".
 """
 import argparse
 import json
@@ -20,11 +23,12 @@ import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 API_DIR = os.path.join(ROOT, "ml", "api")
-SUMMARY = os.path.join(ROOT, "benchmark", "results", "trace", "summary.csv")
-QUALITY = os.path.join(ROOT, "benchmark", "results", "trace", "predictor_quality.csv")
-FEATURES = os.path.join(ROOT, "ml", "data", "features.csv")
-PORT = 8000
-THRESHOLD = 0.0015  # operator alarm threshold on the calibrated scale (README)
+SNAPSHOT = os.path.join(ROOT, "demo", "price_snapshot.csv")
+RESULTS = os.path.join(ROOT, "benchmark", "results")
+PORT = int(os.environ.get("ARGUS_DEMO_PORT", "8765"))
+REGION = "eu-north-1"
+TYPES = ["m5.xlarge", "m5.2xlarge", "c5.xlarge", "c5.2xlarge", "g4dn.xlarge"]
+AZS = ["eu-north-1a", "eu-north-1b", "eu-north-1c"]
 
 
 def step(title, pause):
@@ -34,14 +38,15 @@ def step(title, pause):
 
 
 def get(path):
-    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}{path}", timeout=10) as r:
+    with urllib.request.urlopen(f"http://127.0.0.1:{PORT}{path}", timeout=30) as r:
         return json.load(r)
 
 
-def start_api():
+def start_api(live):
+    env = dict(os.environ, AWS_REGION=REGION, PRICE_SOURCE="ec2" if live else "csv", PRICE_CSV=SNAPSHOT)
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app:app", "--port", str(PORT), "--log-level", "warning"],
-        cwd=API_DIR,
+        cwd=API_DIR, env=env,
     )
     for _ in range(90):
         try:
@@ -56,48 +61,57 @@ def start_api():
 
 
 def show_predictions():
-    pairs = pd.read_csv(FEATURES, usecols=["instance_type", "availability_zone"]).drop_duplicates()
+    info = get("/model")
+    thr = info["thresholds_by_region"]["eu-north-1_old5_types"]["alarm_budget_0.1"]
     rows = []
-    for it, az in pairs.itertuples(index=False):
-        r = get(f"/predict?instance_type={it}&az={az}")
-        rows.append((it, az, r["risk_score"]))
+    for it in TYPES:
+        for az in AZS:
+            r = get(f"/predict?instance_type={it}&az={az}")
+            rows.append((it, az, r["risk_score"], r["last_price_update_age_s"] // 60))
     rows.sort(key=lambda x: -x[2])
-    print(f"{'instance':<14}{'az':<14}{'risk':>8}   action (threshold {THRESHOLD})")
-    for it, az, s in rows:
-        action = "ALARM -> checkpoint + migrate" if s >= THRESHOLD else "ok"
-        print(f"{it:<14}{az:<14}{s:>8.4f}   {action}")
+    print(f"{'instance':<14}{'az':<14}{'risk':>8}{'last update':>14}   action (alarm threshold {thr:.3f})")
+    for it, az, s, age in rows:
+        action = "ALARM -> checkpoint + migrate" if s >= thr else "ok"
+        print(f"{it:<14}{az:<14}{s:>8.4f}{age:>10} min   {action}")
 
 
 def show_benchmark():
-    q = pd.read_csv(QUALITY)
-    t = q[q.split == "test"].set_index("signal")
-    print("Predictor quality on the held-out test slice (proxy labels: price-spike events)")
-    print(t[["positives", "auroc", "lift"]].round(3).to_string())
-
-    s = pd.read_csv(SUMMARY)
-    s = s[(s.N == 1) & (s.C_s == 60.0)]
-    keep = ["none", "reactive", "young_daly", "model_migrate_q0.002", "random_migrate_q0.002", "oracle_migrate"]
-    s = s[s.policy.isin(keep)].set_index("policy").loc[keep]
-    print("\nTrace benchmark, 1 job, 60 s checkpoint write (slowdown 1.0 = never interrupted)")
-    print(s[["slowdown", "wasted_frac", "cost_savings_pct"]].round(3).to_string())
+    new = pd.read_csv(os.path.join(RESULTS, "trace_oct_new", "summary.csv"))
+    old = pd.read_csv(os.path.join(RESULTS, "trace_oct_old", "summary.csv"))
+    det = pd.read_csv(os.path.join(RESULTS, "trace_oct_new", "detection.csv"))
+    d = det[(det.signal == "model") & (det.budget == 0.1)].iloc[0]
+    print("Replay of the last 9 days of eu-north-1 Spot prices: 15 nodes, 66 price-spike events (proxy for reclaims)")
+    print(f"New model at the 10% alarm budget catches {d.recall:.0%} of events with {d.precision:.0%} precision.\n")
+    rows = [("no protection", "none", new), ("reactive on 2-min notice", "reactive", new),
+            ("periodic, Young-Daly", "young_daly", new),
+            ("OLD model alarms", "model_migrate_q0.1", old), ("NEW model alarms", "model_migrate_q0.1", new),
+            ("oracle (perfect warning)", "oracle_migrate", new)]
+    print(f"{'15-node job, slowdown vs ideal':<32}{'ckpt 10 s':>11}{'ckpt 60 s':>11}{'ckpt 300 s':>12}")
+    for label, pol, src in rows:
+        vals = [src[(src.N == 15) & (src.C_s == c) & (src.policy == pol)].slowdown.iloc[0] for c in (10, 60, 300)]
+        print(f"{label:<32}{vals[0]:>11.3f}{vals[1]:>11.3f}{vals[2]:>12.3f}")
     print(
-        "\nHonest reading: the model has real signal (AUROC ~0.75 vs 0.44 for a volatility rule) but at\n"
-        "this recall/precision it does not beat reactive (checkpoint fits the 2-min notice) or\n"
-        "Young-Daly periodic checkpointing. The oracle row shows the headroom a better predictor could capture."
+        "\nHonest reading: when a checkpoint fits the 2-minute notice, reactive is best. When it does not\n"
+        "(300 s, large models), reactive collapses and the retrained model beats periodic checkpointing.\n"
+        "The old model's skill did not survive six months out of time. Kills here are price spikes, not\n"
+        "confirmed reclaims, and the two real reclaims on record showed no price signal\n"
+        "(docs/wide_model_result.md)."
     )
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-pause", action="store_true")
-    pause = not ap.parse_args().no_pause
+    ap.add_argument("--live", action="store_true", help="fetch fresh prices from EC2 (needs AWS credentials)")
+    args = ap.parse_args()
+    pause = not args.no_pause
 
-    step("1/3  Start the prediction service (Transformer + Platt calibration)", pause)
-    proc = start_api()
+    step("1/3  Start the prediction service (gradient boosting + Platt calibration)", pause)
+    proc = start_api(args.live)
     try:
         step("2/3  Score every instance type / AZ and decide what the operator would do", pause)
         show_predictions()
-        step("3/3  Does prediction pay? Trace-driven benchmark on real model scores", pause)
+        step("3/3  Does prediction pay? Trace-driven benchmark with the real model in the loop", pause)
         show_benchmark()
     finally:
         proc.terminate()

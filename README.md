@@ -69,7 +69,7 @@ EC2 Spot instances are ~70–90% cheaper than On-Demand but can be reclaimed on 
 | Layer | What it does |
 |-------|--------------|
 | **1. Prediction** (Person B) | Lambda pulls Spot price history every 5 min → S3 feature store → a Transformer scores interruption risk → served via FastAPI `/predict`. |
-| **2. Orchestration** (Person A) | A `kopf` Kubernetes operator (the `SpotResilientJob` CRD) polls `/predict`; when risk crosses the threshold (`0.0015` for the real calibrated model) it writes a `_FLUSH_TRIGGER` to S3, waits for the pod to confirm the flush, cordons the node, reschedules the pod, and publishes an SQS risk event. |
+| **2. Orchestration** (Person A) | A `kopf` Kubernetes operator (the `SpotResilientJob` CRD) polls `/predict`; when risk crosses the threshold (`0.05` for the real calibrated model, a 10% alarm budget) it writes a `_FLUSH_TRIGGER` to S3, waits for the pod to confirm the flush, cordons the node, reschedules the pod, and publishes an SQS risk event. |
 | **3. Training** | The CIFAR-10 job polls the trigger every 100 batches and saves `model.pt`; a SIGTERM handler checkpoints on drain; the replacement pod resumes from the last epoch. |
 
 The checkpoint mechanism is deliberately **decoupled** — the operator only *signals*; the training pod owns the flush — so the operator never touches training-process internals.
@@ -137,7 +137,7 @@ Transformer on live `eu-north-1` Spot price history. After fixing the bugs that 
 
 ### Observability
 
-The operator emits Prometheus metrics (`argus_risk_score`, `argus_checkpoints_total`, `argus_jobs_completed_total`); a provisioned Grafana dashboard shows a mock predictor's risk climbing across a `0.65` demo threshold and the proactive checkpoint firing at that instant (the real model's calibrated scores are far lower, so it uses `0.0015`):
+The operator emits Prometheus metrics (`argus_risk_score`, `argus_checkpoints_total`, `argus_jobs_completed_total`); a provisioned Grafana dashboard shows a mock predictor's risk climbing across a `0.65` demo threshold and the proactive checkpoint firing at that instant (the real model's calibrated scores live on a different scale, so it uses `0.05`):
 
 ![Argus Grafana dashboard — risk climbs, crosses 0.65, checkpoints fire](docs/Figures/grafana_dashboard.png)
 

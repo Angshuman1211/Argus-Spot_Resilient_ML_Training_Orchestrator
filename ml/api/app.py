@@ -59,7 +59,7 @@ def model_info():
         raise HTTPException(status_code=503, detail=load_error or "model not loaded")
     m = predictor.meta
     return {"model": m.get("model"), "label": m.get("label"), "features": m["feature_names"],
-            "metrics": m.get("metrics"), "thresholds": m.get("thresholds"),
+            "metrics": m.get("metrics"), "thresholds": m.get("thresholds"), "thresholds_by_region": m.get("thresholds_by_region"),
             "instance_types": predictor.instance_types, "region": REGION}
 
 

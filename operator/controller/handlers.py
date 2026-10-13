@@ -31,7 +31,7 @@ from controller.metrics import (
 logger = logging.getLogger(__name__)
 
 PREDICT_SERVICE_URL = os.environ.get("PREDICT_SERVICE_URL", "http://localhost:8000")
-RISK_THRESHOLD_DEFAULT = float(os.environ.get("RISK_THRESHOLD", "0.0015"))
+RISK_THRESHOLD_DEFAULT = float(os.environ.get("RISK_THRESHOLD", "0.05"))
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
 MAX_FAILURE_RETRIES = int(os.environ.get("MAX_FAILURE_RETRIES", "3"))
 UNCORDON_AFTER_SECONDS = int(os.environ.get("UNCORDON_AFTER_SECONDS", "600"))

@@ -31,9 +31,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TRACE = os.path.join(HERE, "traces", "trace_scores.csv.gz")
 OUT = os.path.join(HERE, "results", "trace")
 
-BUDGETS = [0.0005, 0.001, 0.002, 0.005, 0.01]
-CKPT_ONLY_BUDGETS = [0.002, 0.01]
-HYBRID_BUDGETS = [0.002, 0.01]
+BUDGETS = [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
+CKPT_ONLY_BUDGETS = [0.002, 0.01, 0.05, 0.1]
+HYBRID_BUDGETS = [0.002, 0.01, 0.05]
 SYN_RECALL = [0.2, 0.5, 0.8, 0.95]
 SYN_PRECISION = [0.05, 0.1, 0.3, 0.6, 0.9]
 OD_PRICE = {"m5.xlarge": 0.204, "m5.2xlarge": 0.408, "c5.xlarge": 0.188,
@@ -102,9 +102,10 @@ def bootstrap_ci(df, col, rng, n_boot=400):
 
 
 def run(args):
-    os.makedirs(OUT, exist_ok=True)
+    out_dir = args.out_dir or OUT
+    os.makedirs(out_dir, exist_ok=True)
     rng = np.random.default_rng(args.seed)
-    trace = ts.load_trace(TRACE)
+    trace = ts.load_trace(args.trace or TRACE)
     all_nodes = sorted(set(zip(trace.instance_type, trace.availability_zone)))
     sets = node_sets(all_nodes, rng, args.n5_subsets)
     if args.quick:
@@ -119,7 +120,7 @@ def run(args):
     for set_name, nodes in sets:
         n_nodes = len(nodes)
         calib = ts.build_fleet(trace, nodes, "calib")
-        test = ts.build_fleet(trace, nodes, "test")
+        test = ts.build_fleet(trace, nodes, args.split)  # "test" for results, "calib" to pick operating points
         last_start = test.L - 1 - max_len
         if last_start < 1:
             print(f"skip {set_name}: test window too short")
@@ -149,7 +150,7 @@ def run(args):
     runs["wasted_frac"] = runs["wasted"] / W
     runs["cost_savings_pct"] = 100.0 * (1.0 - runs["spot_cost"] / runs["od_cost"])
     tag = f"_{args.tag}" if args.tag else ""
-    runs.to_csv(os.path.join(OUT, f"runs{tag}.csv.gz"), index=False, compression="gzip")
+    runs.to_csv(os.path.join(out_dir, f"runs{tag}.csv.gz"), index=False, compression="gzip")
 
     rows = []
     for (N, C, pol), g in runs.groupby(["N", "C", "policy"]):
@@ -163,14 +164,14 @@ def run(args):
             cost_savings_pct=done.cost_savings_pct.mean(),
         ))
     summary = pd.DataFrame(rows)
-    summary.to_csv(os.path.join(OUT, f"summary{tag}.csv"), index=False)
+    summary.to_csv(os.path.join(out_dir, f"summary{tag}.csv"), index=False)
     if not args.arms_prefix:
-        pd.DataFrame(detection).to_csv(os.path.join(OUT, "detection.csv"), index=False)
-        predictor_quality(trace)
+        pd.DataFrame(detection).to_csv(os.path.join(out_dir, "detection.csv"), index=False)
+        predictor_quality(trace, out_dir)
     print(f"done in {time.time() - t0:.0f}s; wrote {len(runs)} runs")
 
 
-def predictor_quality(trace):
+def predictor_quality(trace, out_dir=OUT):
     """Window-level AUROC / AUPRC on the test split for model vs non-learned signals."""
     rows = []
     for split in ("calib", "test"):
@@ -181,11 +182,15 @@ def predictor_quality(trace):
                              base_rate=float(y.mean()), auprc=average_precision_score(y, x[col]),
                              lift=average_precision_score(y, x[col]) / float(y.mean()),
                              auroc=roc_auc_score(y, x[col])))
-    pd.DataFrame(rows).to_csv(os.path.join(OUT, "predictor_quality.csv"), index=False)
+    pd.DataFrame(rows).to_csv(os.path.join(out_dir, "predictor_quality.csv"), index=False)
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
+    ap.add_argument("--trace", default=None, help="trace_scores csv.gz (default: Jan-Apr trace)")
+    ap.add_argument("--out-dir", default=None, help="output directory (default: results/trace)")
+    ap.add_argument("--split", default="test", choices=["test", "calib"],
+                    help="slice the jobs run on; thresholds always come from the calibration slice")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--arms-prefix", default=None, help="only run policies whose name starts with this")
     ap.add_argument("--tag", default="", help="suffix for output files, e.g. synth")

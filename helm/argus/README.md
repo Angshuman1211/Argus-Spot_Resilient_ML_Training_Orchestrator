@@ -62,13 +62,12 @@ different scales are in play depending on which prediction service you point
 
 | Predict service | Real output range | Threshold that actually fires |
 |---|---|---|
-| Real model (`ml/api/app.py`) | ~0.0001 – 0.0018 (calibrated) | **~0.0015** (the model's own best-F1 point — see `docs/week7_model_evaluation.md`) |
+| Real model (`ml/api/app.py`, gradient boosting) | 0 – 1 (calibrated probability of a >1% price rise within 15 min) | **~0.05** (10% alarm budget for eu-north-1, chosen on the calibration slice: `docs/trace_benchmark_result.md`, `/model` endpoint) |
 | Mock predictor (`demo/mock-predict.yaml`, used for the Week 7 dashboard demo) | 0.15 → 0.90 ramp | 0.65 (the historical default, still correct for this case) |
 
 `demo/spotresilientjob.yaml` ships with `riskThreshold: 0.65` because it was
 built for the mock-predictor demo. **If you point it at the real model
-instead, change this to ~0.0015 or the predictive path will silently never
-trigger** — this was true of every deployment before Week 7 and went
+instead, change this to ~0.05, otherwise the predictive path will fire on every poll** — this was true of every deployment before Week 7 and went
 unnoticed because the dashboard demo (which looks fine) used the mock, not
 the real model. Don't copy `0.65` into a new job spec without checking which
 predict service it's actually talking to.

@@ -1,0 +1,3 @@
+instance_id,region,reclaim_time,instance_type,availability_zone,lifecycle,launch_time,minutes_to_reclaim
+i-06fa87d52e9abd486,eu-north-1,2026-07-29 18:40:37+00:00,c5.xlarge,eu-north-1b,spot,2026-07-29 18:36:57+00:00,3.6666666666666665
+i-097d6418e1207d6d8,eu-north-1,2026-07-30 09:07:21+00:00,m5.large,eu-north-1b,spot,2026-07-30 08:54:54+00:00,12.45

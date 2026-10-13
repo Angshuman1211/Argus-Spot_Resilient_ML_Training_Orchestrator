@@ -66,3 +66,7 @@ presentation_files/
 ml/model/mlruns.db
 benchmark/results/trace_full_run.log
 ml/data/*.npz
+!ml/data/real/
+!ml/data/real/*.csv
+benchmark/results/trace_oct_*/runs*.csv.gz
+benchmark/results/trace_oct_*/run.log
