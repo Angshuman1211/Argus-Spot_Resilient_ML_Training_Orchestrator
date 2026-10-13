@@ -8,6 +8,8 @@
 
 A three-layer system that predicts EC2 Spot interruptions before they happen and automatically checkpoints + migrates running ML training jobs — zero human intervention. The reactive drain-to-resume path is validated on real AWS EKS; the predictive path is evaluated in a local benchmark.
 
+**Project page:** https://d3sswpse16lfj7.cloudfront.net (results, architecture, and the honest findings, hosted on AWS S3 + CloudFront). To see it run locally: `python demo/run_demo.py`.
+
 > **Status: complete (Weeks 1–8).** Live-EKS interruption survival captured, a controlled benchmark quantifies when prediction pays, the risk model is trained/calibrated/characterized, and the whole loop is observable in Grafana. Targeting a NeurIPS ML4Sys 2026 workshop poster.
 
 ---
