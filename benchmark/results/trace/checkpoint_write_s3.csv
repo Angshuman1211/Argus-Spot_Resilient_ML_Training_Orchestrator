@@ -1,0 +1,4 @@
+kind,size_mb,seconds,mb_per_s,download_seconds,download_mb_per_s
+measured_s3_from_this_machine,4,8.83,0.5,6.19,0.6
+measured_s3_from_this_machine,64,51.45,1.2,51.94,1.2
+measured_s3_from_this_machine,256,178.9,1.4,184.95,1.4

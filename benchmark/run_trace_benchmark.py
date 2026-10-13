@@ -85,7 +85,11 @@ def policies_for(calib, C, W, prefix=None):
     for q in CKPT_ONLY_BUDGETS:
         pols.append(Policy(f"model_ckpt_q{q}", "signal", signal="risk",
                            thr=ts.threshold_for_budget(calib.risk, q), action="ckpt"))
-    if prefix:
+    if prefix == "light":
+        # the policies the conclusions rest on: baselines, the model arms, the oracle
+        keep = ("none", "reactive", "periodic_1h", "young_daly", "model_", "oracle")
+        pols = [p for p in pols if p.name.startswith(keep)]
+    elif prefix:
         pols = [p for p in pols if p.name.startswith(prefix)]
     return pols
 

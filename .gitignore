@@ -70,3 +70,6 @@ ml/data/*.npz
 !ml/data/real/*.csv
 benchmark/results/trace_oct_*/runs*.csv.gz
 benchmark/results/trace_oct_*/run.log
+benchmark/results/region_*/*/runs*.csv.gz
+benchmark/results/region_*/*/run.log
+benchmark/results/trace/s3_timing.log

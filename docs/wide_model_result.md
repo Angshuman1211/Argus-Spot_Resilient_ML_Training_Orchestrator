@@ -94,10 +94,12 @@ The Transformer on the same features (3 seeds; `ablation.csv`):
 | + Advisor rate | 9.9x (7.0 to 12.3) | 0.869 |
 | + update cadence | 21.6x (20.7 to 22.5) | 0.943 |
 | + price extremes | 35.5x (32.6 to 37.1) | 0.949 |
-| all 19 (1 of 3 seeds finished so far) | 51.7x | 0.962 |
+| all 19 | 50.3x (48.1 to 51.7) | 0.960 |
+| all 28 | 58.2x (55.7 to 61.7) | 0.967 |
 
-The same conclusion holds for both model classes, and gradient boosting is better and far steadier
-(98.5x to 101.4x across seeds, against 7.0x to 13.2x for the Transformer on base features). It is also
+The same conclusion holds for both model classes. Gradient boosting is about twice as good on the full
+feature set (about 93x to 101x against 50x to 58x) and far steadier (98.5x to 101.4x across seeds, against
+7.0x to 13.2x for the Transformer on base features). It is also
 a lighter dependency: the serving image needs neither torch nor scikit-learn.
 
 ## 4. The shipped model
@@ -184,3 +186,50 @@ every eu-north-1 AZ when queried.
   optimistic.
 - Instance types outside the 30 trained on are not served (the predictor returns 404).
 - Lift is not precision: at the 10% alarm budget precision is 9.5%.
+
+## 9. Robustness checks (added after the first draft)
+
+**Skill is stable over time (`rolling_origin.py`, `rolling_origin.csv`).** The model was retrained from
+scratch at five successive cut-off dates and scored on each following 9-day block, with calibration and
+thresholds from the 7 days before each block:
+
+| Test block | Train days | Test positives | Lift | AUROC | In-hour-end AUROC | Clock-only AUROC |
+|---|---:|---:|---:|---:|---:|---:|
+| 4 to 13 Oct | 73.9 | 2,947 | 98.6x | 0.978 | 0.938 | 0.875 |
+| 25 Sep to 4 Oct | 64.9 | 6,883 | 68.1x | 0.982 | 0.948 | 0.876 |
+| 16 to 25 Sep | 55.9 | 1,621 | 127.8x | 0.977 | 0.936 | 0.875 |
+| 7 to 16 Sep | 46.9 | 2,549 | 104.8x | 0.985 | 0.948 | 0.875 |
+| 29 Aug to 7 Sep | 37.9 | 3,025 | 67.6x | 0.974 | 0.925 | 0.875 |
+
+AUROC stays within 0.974 to 0.985 even with only 38 days of training. Lift varies with each block's base
+rate, which is why AUROC is the steadier comparison.
+
+**The checkpointing result is not specific to one region or slice (`benchmark/summarize_regions.py`,
+`results/regions_summary.csv`).** The same five instance types, fleets of 15, were replayed in all eight
+regions with the alarm budget chosen on each region's own calibration slice. At 300 s checkpoints, paired
+slowdown difference against Young-Daly (negative favours the model), resampled by whole days:
+
+| Region | Spike events | Model vs Young-Daly | 95% interval | Read |
+|---|---:|---:|---|---|
+| eu-north-1 | 66 | -0.200 | [-0.222, -0.178] | model better |
+| ap-southeast-1 | 22 | -0.066 | [-0.134, -0.015] | model better |
+| us-east-2 | 26 | -0.015 | [-0.067, +0.057] | tie |
+| us-east-1 | 22 | +0.015 | [-0.051, +0.075] | tie |
+| us-west-2 | 7 | -0.009 | [-0.035, +0.014] | too few events |
+| eu-central-1 | 3 | 0.000 | [-0.064, +0.061] | too few events |
+| eu-west-1 | 1 | -0.005 | [-0.017, +0.006] | too few events |
+| ap-south-1 | 1 | -0.137 | [-0.144, -0.130] | too few events (one event decides it) |
+
+Of the four regions with 20 or more events the model wins in two and ties in two, and it never loses
+significantly. The other four regions barely had interruptions in the test slice, so no policy can be
+separated there. At 10 s checkpoints it ties Young-Daly and reactive wins everywhere, as before.
+
+**Intervals.** `benchmark/recompute_ci.py` replaces the overlapping-window intervals with paired
+differences resampled by whole days. For eu-north-1 at 15 nodes the model beats Young-Daly by 0.200
+slowdown at 300 s checkpoints [0.178, 0.222] and wins on all 8 test days; at 60 s by 0.068 [0.054, 0.081]
+on 98% of days. Eight days is still a short record.
+
+**Checkpoint cost is parameterized, not measured in-region.** An upload test to S3 from this machine
+(`checkpoint_write_s3.csv`) ran at about 1.4 MB/s (256 MB in 179 s), which says only that the laptop uplink
+is slow. The 10, 60 and 300 s values remain assumptions; the in-region EKS-to-S3 rate needs measuring on the
+cluster.

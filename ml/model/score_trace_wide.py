@@ -48,17 +48,22 @@ def old_model_scores(data, starts):
     return calibrator.predict_proba(np.log(p / (1 - p)).reshape(-1, 1))[:, 1]
 
 
-def main():
+def main(region="eu-north-1", types=None, tag=None, with_old=True):
+    """Build replay traces for one region's fleet. Default reproduces the original eu-north-1 pair."""
     dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     data = we.WideData(dev)
+    types = set(types) if types else set(we.OLD_TYPES)
     meta = json.load(open(os.path.join(HERE, "final", "meta.json")))
     booster = xgb.Booster()
     booster.load_model(os.path.join(HERE, "final", "model.json"))
 
-    sel = data.meta[(data.meta.region == "eu-north-1") & (data.meta.instance_type.isin(we.OLD_TYPES))]
+    sel = data.meta[(data.meta.region == region) & (data.meta.instance_type.isin(types))]
+    # at most three AZs per type so every region's fleet is the same size (15 for five types)
+    sel = sel.sort_values(["instance_type", "availability_zone"]).groupby("instance_type").head(3)
     ids = set(sel.index)
-    assert len(ids) == 15, len(ids)
-    rows = {"new": [], "old": []}
+    assert len(ids) >= 5, f"{region}: only {len(ids)} series for {sorted(types)}"
+    print(f"{region}: {len(ids)} series", flush=True)
+    rows = {"new": [], "old": []} if with_old else {"new": []}
     names = we.BASE
     ci_price = data.names.index("spot_price")
     ci_std, ci_mean = data.names.index("rolling_std_1h"), data.names.index("rolling_mean_1h")
@@ -79,21 +84,29 @@ def main():
             "spot_price": data.X[last, ci_price],
             "advisor_rate": data.meta.advisor_rate.to_numpy()[sid],
         })
-        for tag, scores in (("new", new_model_scores(data, starts, meta, booster)),
-                            ("old", old_model_scores(data, starts))):
+        scored = [("new", new_model_scores(data, starts, meta, booster))]
+        if with_old:
+            scored.append(("old", old_model_scores(data, starts)))
+        for which, scores in scored:
             d = base.copy()
             d["risk_score"] = scores
             d["raw_prob"] = scores
-            rows[tag].append(d)
+            rows[which].append(d)
     os.makedirs(OUT, exist_ok=True)
-    for tag in rows:
-        df = pd.concat(rows[tag], ignore_index=True)
-        path = os.path.join(OUT, f"trace_scores_{tag}.csv.gz")
+    for which in rows:
+        df = pd.concat(rows[which], ignore_index=True)
+        name = f"trace_scores_{which}.csv.gz" if tag is None else f"trace_scores_{tag}.csv.gz"
+        path = os.path.join(OUT, name)
         df.to_csv(path, index=False, compression="gzip")
         t = df[df.split == "test"]
-        print(f"{tag}: {len(df)} rows -> {path}; test spikes {int(t.spike_now.sum())}, "
+        print(f"{which}: {len(df)} rows -> {path}; test spikes {int(t.spike_now.sum())}, "
               f"span {t.timestamp.min()} .. {t.timestamp.max()}")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        # python score_trace_wide.py <region> [tag]: new model only, the 5 original types
+        main(region=sys.argv[1], tag=sys.argv[2] if len(sys.argv) > 2 else sys.argv[1], with_old=False)
+    else:
+        main()

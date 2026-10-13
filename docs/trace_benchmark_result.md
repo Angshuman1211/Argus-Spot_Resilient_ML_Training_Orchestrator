@@ -233,3 +233,10 @@ predicts well, but the only two real reclaims on record (`docs/wide_model_result
 price signal at all. So this section shows that *if* reclaims followed price spikes, a good predictor would
 pay off in the large-checkpoint regime; it does not show that they do. It is also one 9-day slice, with
 correlated series, so the intervals are optimistic. Real reclaim labels are the open problem.
+
+**Robustness (added later).** The conclusion above was re-checked three ways, all in
+`docs/wide_model_result.md` Section 9: intervals resampled by whole days with paired differences against
+Young-Daly (eu-north-1, 15 nodes, 300 s: model better by 0.200 [0.178, 0.222] on all 8 days); a replay in
+seven more regions (the model wins in 2 of the 4 regions with 20 or more events and ties in the other 2, and
+the remaining regions had too few events to tell); and five time-ordered retraining folds (AUROC 0.974 to
+0.985 every time).
