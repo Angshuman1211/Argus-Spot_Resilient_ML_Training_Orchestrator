@@ -107,6 +107,28 @@ A controlled benchmark (4 arms × 4 interruption rates × 5 reps = **80 trials**
 
 What the table shows: **reactive's fixed 2-minute notice stops helping exactly when interruptions come faster than once per ~2 min** (at 120 s MTBF the notice ≈ the interval, so reactive degrades toward no-protection). Predictive's one clean win is **zero wasted compute**, but with an oversized lead it over-migrates and only 1 of 5 runs completes, so its makespan is from a single run. *Periodic* checkpointing, with no ML, matches it on waste and wins on makespan and checkpoint count. In this benchmark the predictive trigger is a configured lead time, not model output (see `Paper/fix_everything_plan.md`). Full table + figures: [`docs/objective2_result.md`](docs/objective2_result.md), [`benchmark/results/`](benchmark/results/).
 
+#### Trace-driven re-run (v2): the predictor has to actually predict
+
+The table above uses Poisson kills and a configured lead time, so it cannot test prediction. The v2 benchmark
+replays the held-out slice of real eu-north-1 Spot price traces with the shipped model's real, causal risk
+scores driving the policy, on a synchronous multi-node job (`benchmark/trace_sim.py`, 154k simulated runs).
+Slowdown vs ideal at 15 nodes (1.0 = no loss), checkpoint cost 10 s / 60 s / 300 s:
+
+| Policy | 10 s | 60 s | 300 s |
+|---|---:|---:|---:|
+| no protection | 3.06 | 3.06 | 3.06 |
+| reactive on 2-min notice | 1.01 | 1.01 | **3.08** |
+| periodic, Young-Daly interval | 1.03 | 1.08 | 1.19 |
+| model alarms (checkpoint + migrate) | 1.45 | 1.46 | 1.52 |
+| Young-Daly + model alarms | 1.04 | 1.09 | 1.20 |
+| oracle (5 min perfect warning) | 1.00 | 1.01 | 1.01 |
+
+Findings: reactive is near-optimal until a checkpoint no longer fits the 2-minute notice, then it collapses to
+no protection; Young-Daly periodic handles every size; the current model (19% recall, 7% precision at the
+event level, on a proxy label) does not beat periodic and adds nothing measurable on top of it; a predictor
+would need roughly 50% recall to matter clearly. Full method, caveats and the "how good must a predictor be"
+sweep: [`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md).
+
 ### Objective 3 — The risk model (honest secondary result)
 
 Transformer on live `eu-north-1` Spot price history. After fixing the bugs that made it useless (train/serve scaler skew — the original flat `0.0419`; train/val leakage; a no-op FocalLoss `alpha`; missing calibration): **14.68× base-rate lift, 5-seed mean, 95% CI ≈ [9.9×, 19.5×]** — on a **proxy label** (price spikes), not real reclaims. Presented as an **advisory** signal; the ceiling is label quality, and real interruption ground truth is future work. Details: [`docs/objective3_result.md`](docs/objective3_result.md).
@@ -124,7 +146,7 @@ Run it: `./scripts/monitoring.sh up` → `./scripts/monitoring.sh open`. See [`d
 ## Honest limitations
 
 - **Objective 1** used an *injected* (schema-conformant) reclaim, not an AWS-issued FIS reclaim.
-- **Objective 2** predictive's zero-waste assumes ~5 min reliable lead time — a benchmark parameter, not a measured property of the trained model; the training job is synthetic (mechanics, not SOTA accuracy).
+- **Objective 2** (Poisson benchmark) predictive's zero-waste assumed a configured lead time, not model output; the trace-driven re-run above replaces it. Kills there are still a price-spike proxy, and the job is simulated (mechanics, not SOTA accuracy).
 - **Objective 3** is measured on a proxy label (price spikes), so the model is advisory, not automation-grade.
 - Real Spot on the primary account was gated by a Free-Tier restriction for most of the build (ADR-005), so Week-6 nodes were On-Demand.
 
@@ -210,6 +232,8 @@ Born from a \$66 EKS cluster left running unnoticed. EKS/NAT are hourly billers 
 - [`docs/objective1_result.md`](docs/objective1_result.md) — real-EKS interruption survival
 - [`docs/objective2_result.md`](docs/objective2_result.md) — benchmark harness + full sweep
 - [`docs/objective3_result.md`](docs/objective3_result.md) — prediction model, 4 rounds
+- [`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md) — trace-driven benchmark with the real model in the loop (v2)
+- [`Paper/fix_everything_plan.md`](Paper/fix_everything_plan.md) — the v2 fix list
 - [`docs/A6_observability.md`](docs/A6_observability.md) — Prometheus + Grafana
 - [`docs/problems_and_decisions.md`](docs/problems_and_decisions.md) — every problem (P-0xx) + ADRs
 - [`docs/poster_blueprint.md`](docs/poster_blueprint.md) — the 4-page poster plan
