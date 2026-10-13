@@ -65,3 +65,4 @@ presentation_files/
 /paper
 ml/model/mlruns.db
 benchmark/results/trace_full_run.log
+ml/data/*.npz

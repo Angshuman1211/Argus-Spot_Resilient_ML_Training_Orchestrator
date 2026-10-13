@@ -67,7 +67,9 @@ class Fleet:
 
 def load_trace(path):
     df = pd.read_csv(path, parse_dates=["timestamp"])
-    df["k"] = (df["timestamp"].astype("int64") // 10**9 // int(STEP)).astype(int)
+    # unit-independent epoch seconds (datetime64 resolution differs across pandas versions)
+    secs = (df["timestamp"] - pd.Timestamp("1970-01-01", tz="UTC")) // pd.Timedelta(seconds=1)
+    df["k"] = (secs // int(STEP)).astype(int)
     return df
 
 
