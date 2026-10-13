@@ -14,16 +14,19 @@ Owners follow the v2 plan: **A = Angshuman** (systems, infra, harness, real EKS)
 | 1.4 operator: uncordon, retry, AZ from spec, CRD enum, metrics, dead code, mojibake | done. Unused CRD fields (`command`, `checkpointIntervalSteps`) and bare-pod creation still open |
 | 1.5 training job: atomic upload, retries, resume same epoch, flag-based SIGTERM | done, 9 tests (`tests/training`) |
 | 1.6 pipeline accepts Lambda schema, unknown types dropped, API lifespan | done. Serving still uses a baked-in features.csv |
-| 1.7 CI | tests workflow added, deploy trigger fixed to `master`. Still static AWS keys (needs an IAM role for OIDC) |
+| 1.7 CI | tests workflow added (installs xgboost and API deps), deploy trigger fixed to `master`. OIDC: `scripts/setup_github_oidc.sh` is written but creating the IAM role was blocked; needs you to run it, then switch `deploy.yml` to the role |
 | 2.1 trace-driven benchmark with the real model | done (`benchmark/trace_sim.py`, `docs/trace_benchmark_result.md`) |
 | 2.2 non-learned baselines | done (volatility rule, Advisor-tier Young-Daly, random) |
 | 2.3 rerun with proper stats | done (CIs by block bootstrap, 3 fleet sizes, 3 checkpoint costs) |
 | 2.4 checkpoint size vs write time | measured local disk; S3 upload speed assumed, not measured |
 | 2.5 stress test doc | fixed (no speedup claim) |
-| 2.6 real-EKS predictive-path run | open, needs AWS |
+| 2.6 real-EKS predictive-path run | not done by this session. A cluster `argus-eks` (3 On-Demand nodes) was started at 11:11 IST by another Claude session and is still running; I did not touch it or Terraform |
 | 3.1 predictor-as-predictor numbers | done (`predictor_quality.csv`, `detection.csv`) |
-| 3.2 multi-seed re-test of rejected features | open (long training runs) |
-| 3.3 real reclaim labels | open, blocked on AWS access |
+| 3.2 multi-seed re-test of rejected features | done on 100x more data, XGBoost and Transformer (`docs/wide_model_result.md`). Both stay rejected; cadence and price-position features help a lot |
+| 3.3 real reclaim labels | 2 real reclaims found in CloudTrail and saved (`ml/data/real/real_reclaims.csv`); neither model flagged them. Sensor fleet (`scripts/launch_reclaim_sensors.sh`) written, dry-run validated, launch blocked: needs your approval |
+| 3.4 retrain on more data, better model class | done: 8 regions, 768 series, XGBoost, 101x lift on an untouched slice (old model 2.2x on the same windows) |
+| 3.5 serve live data, shared feature code | done: `ml/api` (EC2 / S3 / CSV sources), causality tests, image `argus/predict-service:v2-xgb` pushed to ECR. EC2/S3 sources need an IAM policy not applied from here |
+| 2.7 benchmark with the retrained model | done on an October slice with a calibration-selected alarm budget: model beats Young-Daly (1.14x vs 1.34x) at 15 nodes / 300 s checkpoints |
 | Part 4 paper rewrite | not started, waits for discussion |
 | Part 5 hygiene | `terraform.exe`, `mlruns.db`, stray BSL `LICENSE.txt` untracked, `.gitignore` cleaned. History not rewritten (the 90 MB blob remains in old commits) |
 
