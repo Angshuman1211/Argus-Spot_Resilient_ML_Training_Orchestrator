@@ -4,6 +4,35 @@ Companion to `v2_revision_plan.md`. That file covers the reviewer comments. This
 
 Owners follow the v2 plan: **A = Angshuman** (systems, infra, harness, real EKS), **B = Rayyan** (model, ML writing). Effort: LOW (under 1 hour), MED (a few hours), HIGH (days).
 
+## Status (branch `week-9-v2-fixes-and-benchmark`)
+
+| Item | State |
+|---|---|
+| 1.1 operator waits for checkpoint flush | done, 12 tests (`tests/operator`) |
+| 1.2 calibrator in API image, refuse uncalibrated | done, tested. Image not rebuilt or pushed |
+| 1.3 threshold consistency | done (`demo/spotresilientjob-real.yaml`, README) |
+| 1.4 operator: uncordon, retry, AZ from spec, CRD enum, metrics, dead code, mojibake | done. Unused CRD fields (`command`, `checkpointIntervalSteps`) and bare-pod creation still open |
+| 1.5 training job: atomic upload, retries, resume same epoch, flag-based SIGTERM | done, 9 tests (`tests/training`) |
+| 1.6 pipeline accepts Lambda schema, unknown types dropped, API lifespan | done. Serving still uses a baked-in features.csv |
+| 1.7 CI | tests workflow added, deploy trigger fixed to `master`. Still static AWS keys (needs an IAM role for OIDC) |
+| 2.1 trace-driven benchmark with the real model | done (`benchmark/trace_sim.py`, `docs/trace_benchmark_result.md`) |
+| 2.2 non-learned baselines | done (volatility rule, Advisor-tier Young-Daly, random) |
+| 2.3 rerun with proper stats | done (CIs by block bootstrap, 3 fleet sizes, 3 checkpoint costs) |
+| 2.4 checkpoint size vs write time | measured local disk; S3 upload speed assumed, not measured |
+| 2.5 stress test doc | fixed (no speedup claim) |
+| 2.6 real-EKS predictive-path run | open, needs AWS |
+| 3.1 predictor-as-predictor numbers | done (`predictor_quality.csv`, `detection.csv`) |
+| 3.2 multi-seed re-test of rejected features | open (long training runs) |
+| 3.3 real reclaim labels | open, blocked on AWS access |
+| Part 4 paper rewrite | not started, waits for discussion |
+| Part 5 hygiene | `terraform.exe`, `mlruns.db`, stray BSL `LICENSE.txt` untracked, `.gitignore` cleaned. History not rewritten (the 90 MB blob remains in old commits) |
+
+Key result that changes the paper: the trace benchmark shows the current model does not beat Young-Daly
+periodic checkpointing (details in `docs/trace_benchmark_result.md`), so the framing in Part 4.1 should be the
+guideline plus negative result.
+
+---
+
 Order of work: Part 1 (stop the system lying) -> Part 2 (make the benchmark test prediction) -> Part 3 (paper) -> Part 4 (cleanup). Do not rewrite the paper before Parts 1 and 2 are done, or the numbers will change under you.
 
 ---
