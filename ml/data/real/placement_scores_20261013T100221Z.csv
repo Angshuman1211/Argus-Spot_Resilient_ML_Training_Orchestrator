@@ -1,0 +1,16 @@
+time_utc,instance_type,availability_zone,placement_score
+2026-10-13T10:03:10.651751Z,c5.large,eu-north-1c,3
+2026-10-13T10:03:10.651751Z,c5.large,eu-north-1a,3
+2026-10-13T10:03:10.651751Z,c5.large,eu-north-1b,3
+2026-10-13T10:03:10.651751Z,m5.large,eu-north-1c,3
+2026-10-13T10:03:10.651751Z,m5.large,eu-north-1a,1
+2026-10-13T10:03:10.651751Z,m5.large,eu-north-1b,1
+2026-10-13T10:03:10.651751Z,t3.medium,eu-north-1c,3
+2026-10-13T10:03:10.651751Z,t3.medium,eu-north-1b,3
+2026-10-13T10:03:10.651751Z,t3.medium,eu-north-1a,3
+2026-10-13T10:03:10.651751Z,c6i.large,eu-north-1a,1
+2026-10-13T10:03:10.651751Z,c6i.large,eu-north-1c,3
+2026-10-13T10:03:10.651751Z,c6i.large,eu-north-1b,3
+2026-10-13T10:03:10.651751Z,m6i.large,eu-north-1c,1
+2026-10-13T10:03:10.651751Z,m6i.large,eu-north-1a,1
+2026-10-13T10:03:10.651751Z,m6i.large,eu-north-1b,1

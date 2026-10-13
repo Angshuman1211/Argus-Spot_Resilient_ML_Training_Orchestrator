@@ -1,0 +1,8 @@
+instance_id,instance_type,availability_zone,event_time_utc,status
+,m5.large,eu-north-1a,2026-10-13T10:02:22.369821Z,failed:InsufficientInstanceCapacity
+,c6i.large,eu-north-1a,2026-10-13T10:02:33.943014Z,failed:InsufficientInstanceCapacity
+,m6i.large,eu-north-1a,2026-10-13T10:02:51.962397Z,failed:InsufficientInstanceCapacity
+i-0123375ebc6ce8594,m5.large,eu-north-1b,2026-10-13T10:03:04.101949Z,launched
+i-04dd51a8d8b240a1e,c6i.large,eu-north-1b,2026-10-13T10:03:06.294698Z,launched
+i-06fb49808c97d2813,m6i.large,eu-north-1b,2026-10-13T10:03:07.747418Z,launched
+i-00d3829f433a56336,m6i.large,eu-north-1c,2026-10-13T10:03:09.153872Z,launched

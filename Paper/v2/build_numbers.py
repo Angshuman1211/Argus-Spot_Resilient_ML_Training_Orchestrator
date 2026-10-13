@@ -107,6 +107,12 @@ for C, nm in cname.items():
     for tag, val in (("Model", g.loc[best, "slowdown"]), ("YD", g.loc["young_daly", "slowdown"]),
                      ("Reactive", g.loc["reactive", "slowdown"]), ("Periodic", g.loc["periodic_1h", "slowdown"])):
         put(f"ov{tag}{nm}", (val - 1) * 100, "{:.0f}")
+pq = pd.read_csv(os.path.join(R, "trace_oct_new", "predictor_quality.csv"))
+pqt = pq[pq.split == "test"].set_index("signal")
+put("aurocVol", pqt.loc["volatility_rule", "auroc"], "{:.2f}")
+put("aurocAdvisorRule", pqt.loc["advisor_prior", "auroc"], "{:.2f}")
+put("slowAdvisorYDThreeHundred", te[(te.N == 15) & (te.C_s == 300) & (te.policy == "advisor_young_daly")].iloc[0].slowdown, "{:.2f}")
+put("slowVolThreeHundred", te[(te.N == 15) & (te.C_s == 300) & (te.policy == "vol_migrate_q0.1")].iloc[0].slowdown, "{:.2f}")
 ci = pd.read_csv(os.path.join(R, "trace_oct_new", "paired_day_ci.csv"))
 cr = ci[(ci.N == 15) & (ci.baseline == "young_daly")].set_index("C_s")
 for C, nm in cname.items():
