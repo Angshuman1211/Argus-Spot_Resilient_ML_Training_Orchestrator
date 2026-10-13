@@ -61,6 +61,16 @@ cmd_run() {
   $K get nodes | tee -a "$log"
 }
 
+cmd_start() {
+  # start a job and leave it running (used for the job that should NOT migrate)
+  export NAME="$1" EXTRA_MB="$2" THRESHOLD="$3" EPOCHS="${EPOCHS:-3}"
+  local d; d="$(dirname "${BASH_SOURCE[0]}")/../demo/drill"
+  envsubst < "$d/pod.yaml.tmpl" | $K apply -f -
+  $K wait --for=condition=Ready pod/$NAME --timeout=900s
+  sleep 45
+  envsubst < "$d/cr.yaml.tmpl" | $K apply -f -
+}
+
 cmd_restore() {
   $K apply -f "$STATE/deployments_before.yaml"
   $K get nodes -o name | while read -r n; do $K uncordon "${n#node/}" || true; done
@@ -69,6 +79,7 @@ cmd_restore() {
 case "${1:-}" in
   prepare) cmd_prepare ;;
   run) shift; cmd_run "$@" ;;
+  start) shift; cmd_start "$@" ;;
   restore) cmd_restore ;;
-  *) echo "usage: $0 prepare | run NAME EXTRA_MB THRESHOLD | restore"; exit 1 ;;
+  *) echo "usage: $0 prepare | run NAME EXTRA_MB THRESHOLD | start NAME EXTRA_MB THRESHOLD | restore"; exit 1 ;;
 esac

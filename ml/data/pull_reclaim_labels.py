@@ -71,8 +71,8 @@ def main():
         print("no BidEvictedEvent records in the last 90 days")
         return
     new = new.drop_duplicates("instance_id").sort_values("reclaim_time").reset_index(drop=True)
-    new["launch_time"] = pd.to_datetime(new["launch_time"], utc=True)
-    new["reclaim_time"] = pd.to_datetime(new["reclaim_time"], utc=True)
+    new["launch_time"] = pd.to_datetime(new["launch_time"], utc=True, format="ISO8601")
+    new["reclaim_time"] = pd.to_datetime(new["reclaim_time"], utc=True, format="ISO8601")
     new["minutes_to_reclaim"] = (new["reclaim_time"] - new["launch_time"]).dt.total_seconds() / 60
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     new.to_csv(OUT, index=False)

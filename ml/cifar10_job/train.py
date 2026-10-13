@@ -4,6 +4,7 @@ import signal
 import time
 
 import boto3
+from botocore.exceptions import ClientError
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -42,6 +43,10 @@ class SimpleCNN(nn.Module):
 
 
 UPLOAD_RETRIES = int(os.environ.get("UPLOAD_RETRIES", "3"))
+DOWNLOAD_RETRIES = int(os.environ.get("DOWNLOAD_RETRIES", "5"))
+# How often (in wall-clock seconds) the training loop looks for an operator flush request. Polling every N
+# batches made the latency depend on batch time: with a large model the operator timed out before the pod looked.
+FLUSH_POLL_SECONDS = float(os.environ.get("FLUSH_POLL_SECONDS", "5"))
 
 
 def save_checkpoint(model, optimizer, epoch, completed):
@@ -54,8 +59,10 @@ def save_checkpoint(model, optimizer, epoch, completed):
     advanced, but the epoch is unfinished, so a resume re-runs `epoch` instead of
     skipping its remaining batches.
 
-    The upload goes to a temporary key and is then copied over the real one, so a kill
-    during the upload cannot leave a truncated latest_checkpoint.pt behind.
+    The upload goes straight to the real key. An S3 object becomes visible only when its
+    upload completes, so a kill mid-upload cannot leave a truncated latest_checkpoint.pt. (An
+    earlier version uploaded to a temp key and copied it over: on a 2 GB checkpoint the copy added
+    about 18 s and the copied object then failed ETag validation on download. Do not reintroduce it.)
     """
     print(f"Saving checkpoint (epoch {epoch}, completed={completed}) -> s3://{S3_BUCKET}/{S3_PREFIX}")
     torch.save(
@@ -67,17 +74,11 @@ def save_checkpoint(model, optimizer, epoch, completed):
         },
         LOCAL_CHECKPOINT_PATH,
     )
-    tmp_key = S3_PREFIX + ".tmp"
     size_mb = os.path.getsize(LOCAL_CHECKPOINT_PATH) / 1e6
     for attempt in range(1, UPLOAD_RETRIES + 1):
         try:
             t0 = time.time()
-            s3_client.upload_file(LOCAL_CHECKPOINT_PATH, S3_BUCKET, tmp_key)
-            s3_client.copy_object(
-                Bucket=S3_BUCKET,
-                Key=S3_PREFIX,
-                CopySource={"Bucket": S3_BUCKET, "Key": tmp_key},
-            )
+            s3_client.upload_file(LOCAL_CHECKPOINT_PATH, S3_BUCKET, S3_PREFIX)
             print(f"Checkpoint uploaded: {size_mb:.1f} MB in {time.time() - t0:.1f} s "
                   f"({size_mb / max(time.time() - t0, 1e-6):.1f} MB/s)", flush=True)
             return True
@@ -89,11 +90,23 @@ def save_checkpoint(model, optimizer, epoch, completed):
 
 def load_checkpoint(model, optimizer):
     print(f"Loading checkpoint from s3://{S3_BUCKET}/{S3_PREFIX}")
-    try:
-        s3_client.download_file(S3_BUCKET, S3_PREFIX, LOCAL_CHECKPOINT_PATH)
-    except Exception as e:
-        print(f"No checkpoint found - starting fresh. ({e})")
-        return 0
+    for attempt in range(1, DOWNLOAD_RETRIES + 1):
+        try:
+            s3_client.download_file(S3_BUCKET, S3_PREFIX, LOCAL_CHECKPOINT_PATH)
+            break
+        except ClientError as e:
+            code = str(e.response.get("Error", {}).get("Code", ""))
+            if code in ("404", "NoSuchKey", "NotFound"):
+                print("No checkpoint found - starting fresh.")
+                return 0
+            err = e
+        except Exception as e:  # for example the object changing during a ranged download
+            err = e
+        # Any other failure must NEVER be read as "no checkpoint": that would silently discard all progress.
+        print(f"Checkpoint download failed (attempt {attempt}/{DOWNLOAD_RETRIES}): {err}", flush=True)
+        if attempt == DOWNLOAD_RETRIES:
+            raise RuntimeError("could not load the existing checkpoint; refusing to start from scratch") from err
+        time.sleep(min(2 ** attempt, 15))
     ckpt = torch.load(LOCAL_CHECKPOINT_PATH, weights_only=True)
     model.load_state_dict(ckpt["model_state_dict"])
     optimizer.load_state_dict(ckpt["optimizer_state_dict"])
@@ -178,6 +191,7 @@ def main():
 
     for epoch in range(start_epoch, epochs):
         current_epoch = epoch
+        last_poll = 0.0
         running_loss = 0.0
 
         for i, (inputs, labels) in enumerate(trainloader):
@@ -198,7 +212,8 @@ def main():
                 save_checkpoint(model, optimizer, epoch, completed=False)
                 sys.exit(0)
 
-            if i % 100 == 0:
+            if time.time() - last_poll >= FLUSH_POLL_SECONDS:
+                last_poll = time.time()
                 check_flush_trigger(epoch)
 
         save_checkpoint(model, optimizer, epoch, completed=True)

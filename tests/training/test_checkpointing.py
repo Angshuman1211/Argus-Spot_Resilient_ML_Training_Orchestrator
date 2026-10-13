@@ -28,9 +28,15 @@ class FakeS3:
     def copy_object(self, Bucket, Key, CopySource):
         self.objects[(Bucket, Key)] = self.objects[(CopySource["Bucket"], CopySource["Key"])]
 
+    download_errors = 0   # raise this many transient errors before succeeding
+
     def download_file(self, bucket, key, path):
+        if self.download_errors > 0:
+            self.download_errors -= 1
+            raise RuntimeError("object changed during download (ETag mismatch)")
         if (bucket, key) not in self.objects:
-            raise FileNotFoundError(key)
+            from botocore.exceptions import ClientError
+            raise ClientError({"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject")
         with open(path, "wb") as f:
             f.write(self.objects[(bucket, key)])
 
@@ -180,3 +186,27 @@ def test_sigterm_handler_only_sets_flag(job):
         job.handle_sigterm()
     assert job.shutdown_requested is True
     save.assert_not_called()
+
+
+def test_a_transient_download_error_is_retried_not_treated_as_no_checkpoint(job):
+    model, opt = _fresh(job)
+    job.save_checkpoint(model, opt, 4, completed=True)
+    job.fake_s3.download_errors = 2   # the real cluster hit an ETag mismatch like this once
+    m2, o2 = _fresh(job)
+    assert job.load_checkpoint(m2, o2) == 5   # resumed, did NOT silently restart from epoch 0
+
+
+def test_persistent_download_failure_raises_instead_of_discarding_progress(job):
+    model, opt = _fresh(job)
+    job.save_checkpoint(model, opt, 4, completed=True)
+    job.fake_s3.download_errors = 99
+    m2, o2 = _fresh(job)
+    with pytest.raises(RuntimeError):
+        job.load_checkpoint(m2, o2)
+
+
+def test_flush_polling_is_by_wall_clock_not_by_batch_count(job):
+    assert job.FLUSH_POLL_SECONDS > 0
+    import inspect
+    src = inspect.getsource(job.main)
+    assert "FLUSH_POLL_SECONDS" in src and "i % 100" not in src
