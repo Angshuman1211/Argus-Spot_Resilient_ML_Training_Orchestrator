@@ -73,3 +73,5 @@ benchmark/results/trace_oct_*/run.log
 benchmark/results/region_*/*/runs*.csv.gz
 benchmark/results/region_*/*/run.log
 benchmark/results/trace/s3_timing.log
+benchmark/results/csweep/*/runs*.csv.gz
+benchmark/results/csweep/*/run.log

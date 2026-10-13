@@ -6,6 +6,8 @@ Owners follow the v2 plan: **A = Angshuman** (systems, infra, harness, real EKS)
 
 ## Status (branch `week-9-v2-fixes-and-benchmark`)
 
+**Update 2026-10-13 evening.** Done since the table below: wide retrained model, real reclaim labels (sensor fleet, 29 of 36 instances reclaimed), in-region checkpoint timing (114 MB/s per node), real-cluster drills with the v2 operator (ack 2.1 s small, 34.3 s for 2 GB), five operator and training-job defects found and fixed, paper v2 in `Paper/v2/` (compiles, numbers and tables generated from data), point-by-point `docs/review_response.md`. Still open: the OIDC role for CI (`scripts/setup_github_oidc.sh`, blocked), a model trained on real labels, a human read-through of the paper, and removing the `argus-eks` cluster (not ours to delete).
+
 | Item | State |
 |---|---|
 | 1.1 operator waits for checkpoint flush | done, 12 tests (`tests/operator`) |

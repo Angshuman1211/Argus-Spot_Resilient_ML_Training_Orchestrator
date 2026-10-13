@@ -154,11 +154,17 @@ if os.path.exists(rr):
     put("realReclaimed", e["reclaimed"], "{:d}")
     put("realSteps", fmt_int(e["steps"]), "{}")
     put("realPosSteps", e["positive_steps"], "{:d}")
-    for nm, k in (("Price", "price model"), ("Place", "placement score"), ("Proxy", "proxy spike (future)"), ("Prior", "pool prior")):
-        p = e["predictors"][k]
-        put(f"realAuroc{nm}", p["auroc"], "{:.2f}")
-        put(f"realLo{nm}", p["ci"][0], "{:.2f}")
-        put(f"realHi{nm}", p["ci"][1], "{:.2f}")
+    put("realMedianMin", e["median_minutes_alive_when_reclaimed"], "{:.0f}")
+    put("realYoungSteps", e["within_first_30_minutes"]["steps"], "{:d}")
+    put("realYoungPos", e["within_first_30_minutes"]["positives"], "{:d}")
+    for nm, k in (("Price", "price model"), ("Place", "placement score"), ("Age", "instance age (control)"),
+                  ("Prior", "pool prior"), ("Proxy", "proxy spike (future)"), ("Learned", "learned (cv by hour)")):
+        p_ = e["predictors"][k]
+        put(f"realAuroc{nm}", p_["auroc"], "{:.2f}")
+        put(f"realLo{nm}", p_["ci"][0], "{:.2f}")
+        put(f"realHi{nm}", p_["ci"][1], "{:.2f}")
+        y = e["within_first_30_minutes"]["auroc"][k]
+        put(f"realYoung{nm}", y["auroc"], "{:.2f}")
 
 # ------------------------------------------------------------------ real-cluster drills (from the logs)
 import datetime as _dt

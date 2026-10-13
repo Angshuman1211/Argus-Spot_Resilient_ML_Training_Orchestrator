@@ -114,6 +114,8 @@ def run(args):
     sets = node_sets(all_nodes, rng, args.n5_subsets)
     if args.quick:
         sets = [s for s in sets if s[0] in ("N15", "N5_0", "N1_0")]
+    if args.only_sets:
+        sets = [s for s in sets if s[0] in args.only_sets.split(",")]
     W = args.work_hours * 3600.0
     R = args.restart_s
     max_len = int(args.max_makespan_factor * W / STEP)
@@ -195,6 +197,7 @@ if __name__ == "__main__":
     ap.add_argument("--out-dir", default=None, help="output directory (default: results/trace)")
     ap.add_argument("--split", default="test", choices=["test", "calib"],
                     help="slice the jobs run on; thresholds always come from the calibration slice")
+    ap.add_argument("--only-sets", default=None, help="comma list, e.g. N15")
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--arms-prefix", default=None, help="only run policies whose name starts with this")
     ap.add_argument("--tag", default="", help="suffix for output files, e.g. synth")

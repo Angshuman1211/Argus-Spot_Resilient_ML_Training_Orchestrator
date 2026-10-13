@@ -151,33 +151,45 @@ prices (66 spike events, 15 nodes), with the alarm budget chosen on the calibrat
 - The old model on the same events catches 10.6% of them at 0.8% precision (new: 74.2% at 9.5%) and is far
   worse than periodic checkpointing (2.479x at 300 s).
 
-## 7. Real reclaims show no price signal (n = 2)
+## 7. Real reclaims: the price model has no skill, AWS's capacity signal does
 
-The account's own Spot history contains two **real** reclaims (CloudTrail `BidEvictedEvent`,
-`ml/data/real/real_reclaims.csv`), both in eu-north-1b, both within minutes of launch:
+**First evidence (two events).** The account's own Spot history held two real reclaims (CloudTrail
+`BidEvictedEvent`, `ml/data/real/real_reclaims.csv`), both in eu-north-1b, minutes after launch: a c5.xlarge on 29 Jul
+(3.7 minutes alive) and an m5.large on 30 Jul (12.5 minutes). Neither the retrained nor the old model warned (the
+retrained model's risk was at the 0.7th percentile of that pool's scores 15 minutes before the first, and about zero
+before the second), and neither pool had a price spike.
 
-| Instance | Launched (UTC) | Reclaimed (UTC) | Minutes alive |
-|---|---|---|---:|
-| c5.xlarge | 29 Jul 18:36:57 | 29 Jul 18:40:37 | 3.7 |
-| m5.large | 30 Jul 08:54:54 | 30 Jul 09:07:21 | 12.5 |
+**Producing real labels on purpose.** With your approval a fleet of tiny Spot instances (`scripts/sensor_campaign.py`:
+one per instance type and AZ pool, replaced when reclaimed, no public IP, every instance self-terminating within
+2 hours, 150 launches maximum) ran for about three hours in eu-north-1 and recorded AWS's Spot placement score for every
+pool every five minutes. Of 36 instances, **29 were reclaimed**, the median after 12 minutes and 22 of them within 25
+minutes. A further **43 launch attempts failed** with `InsufficientInstanceCapacity`, itself a label of a pool with no
+capacity. Reclaims came from three of the five instance types (m5.large 12, m6i.large 11, c6i.large 6); c5.large and
+t3.medium were never reclaimed, so pool identity explains much of the pattern. The unit of analysis is an (instance, 5-minute step); the label is a reclaim of that
+instance within the next 15 minutes (288 steps, 39 positive). Because reclaims hit young instances, instance age is
+included as a control (`ml/model/evaluate_real_reclaims.py`, `real_reclaim_eval.json`):
 
-Neither model warned. For the c5.xlarge pool the new model's risk 15 minutes before was at the 0.7th
-percentile of that pool's scores (max 0.0073 in the preceding hour, against a 99th percentile of 0.134);
-for the m5.large pool the risk was about zero throughout (15.8th to 21.9th percentile) with no price
-spike at any step. The old model was no better (percentiles 18.8 to 19.4 for the first pool, 1.9 to 2.5 for the second until
-the reclaim step itself, where it read 25.4).
+| Predictor | AUROC | 95% interval (resampled by hour) | First 30 min of an instance's life |
+|---|---:|---|---:|
+| Price-history model (retrained) | 0.44 | [0.40, 0.54] | 0.36 |
+| AWS Spot placement score | 0.81 | [0.67, 0.90] | 0.89 |
+| Reclaim rate of the pool (leave one hour out) | 0.87 | [0.79, 0.93] | 0.86 |
+| Instance age, younger is riskier (control) | 0.72 | [0.40, 0.82] | 0.73 |
+| Logistic model on placement, age, price risk | 0.76 | [0.61, 0.95] | 0.81 |
+| Price spike in the next 15 min (not causal) | 0.50 | [0.50, 0.50] | 0.50 |
 
-Two events cannot give a rate, and both fall inside the new model's training period, so this is a sanity
-check, not an evaluation. But it is the first real ground truth, and it points the wrong way for the
-price-spike proxy: AWS reclaims on capacity, and price does not show it. The proxy-based results above
-measure how well price behaviour is predicted, not how well reclaims are.
+The price-history model has no skill on real reclaims, and the price-spike proxy never coincides with them.
+AWS's placement score does carry signal, including among young instances, so it is not just tracking age. The pool's
+own reclaim rate does about as well and we cannot separate the two with this little data (pools differ in
+placement score). A learned model on three features does not beat the placement score alone.
 
-Next step, ready but not run: `scripts/launch_reclaim_sensors.sh` launches 15 tiny Spot instances across 5
-instance types and 3 AZs with an 8-hour self-termination cap (about $1 to $2) so reclaims are generated
-on purpose and read back with `ml/data/pull_reclaim_labels.py`. The launch was blocked as a billable action
-in this session, so it needs your go-ahead. A second real signal worth collecting going forward is the
-Spot placement score (`ec2 get-spot-placement-scores`), which returned 1 (low) for 20 units of m5.xlarge in
-every eu-north-1 AZ when queried.
+**What this does to the other results.** Sections 4 to 6 are correct about what they measure (how well price
+behaviour is predicted, and the checkpointing benefit if reclaims followed price spikes). They do not show that the
+model predicts real reclaims; the evidence here says it does not. A deployed system should replace or combine the price
+features with capacity signals such as the placement score. The intervals are wide because the record covers only
+a few hours in one region, and sensors that are reclaimed within minutes of launch may behave differently from
+long-running training nodes. More collection (`scripts/sensor_campaign.py --hours N`, then
+`ml/data/pull_reclaim_labels.py` and the evaluation) and a model trained on real labels are the next step.
 
 ## 8. Limits
 

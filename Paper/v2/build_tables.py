@@ -118,13 +118,16 @@ write("table_regions.tex", rows)
 rr = os.path.join(W, "real_reclaim_eval.json")
 if os.path.exists(rr):
     e = json.load(open(rr))
-    rows = ["\\begin{tabular}{lrr}", "\\toprule", "Predictor & AUROC & 95\\% interval \\\\", "\\midrule"]
+    rows = [r"\begin{tabular}{lrrr}", r"\toprule", r"Predictor & AUROC & 95\% interval & First 30 min \\", r"\midrule"]
     order = [("Price-history model (retrained)", "price model"), ("AWS Spot placement score", "placement score"),
              ("Reclaim rate of the pool (leave one hour out)", "pool prior"),
+             ("Instance age, younger is riskier (control)", "instance age (control)"),
+             ("Logistic model on placement, age, price risk", "learned (cv by hour)"),
              ("Price spike in the next 15 min (not causal)", "proxy spike (future)")]
     for label, k in order:
         p = e["predictors"][k]
-        rows.append(f"{label} & {p['auroc']:.2f} & [{p['ci'][0]:.2f}, {p['ci'][1]:.2f}] \\\\")
-    rows += ["\\bottomrule", "\\end{tabular}"]
+        y = e["within_first_30_minutes"]["auroc"][k]["auroc"]
+        rows.append(f"{label} & {p['auroc']:.2f} & [{p['ci'][0]:.2f}, {p['ci'][1]:.2f}] & {y:.2f} \\\\")
+    rows += [r"\bottomrule", r"\end{tabular}"]
     write("table_real.tex", rows)
 print("tables written to", OUT, "| measured S3 rate used:", round(rate), "MB/s")
