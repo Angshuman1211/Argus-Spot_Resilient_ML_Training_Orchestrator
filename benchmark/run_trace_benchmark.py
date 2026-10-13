@@ -34,8 +34,8 @@ OUT = os.path.join(HERE, "results", "trace")
 BUDGETS = [0.0005, 0.001, 0.002, 0.005, 0.01]
 CKPT_ONLY_BUDGETS = [0.002, 0.01]
 HYBRID_BUDGETS = [0.002, 0.01]
-SYN_RECALL = [0.2, 0.5, 0.8]
-SYN_PRECISION = [0.1, 0.3, 0.6]
+SYN_RECALL = [0.2, 0.5, 0.8, 0.95]
+SYN_PRECISION = [0.05, 0.1, 0.3, 0.6, 0.9]
 OD_PRICE = {"m5.xlarge": 0.204, "m5.2xlarge": 0.408, "c5.xlarge": 0.188,
             "c5.2xlarge": 0.376, "g4dn.xlarge": 0.605}
 
@@ -50,7 +50,7 @@ def node_sets(all_nodes, rng, n5_subsets):
     return sets
 
 
-def policies_for(calib, C, W):
+def policies_for(calib, C, W, prefix=None):
     """Policy list for one fleet and checkpoint cost, thresholds fitted on `calib` only."""
     calib_span = calib.L * STEP
     mtbf_calib = ts.fleet_mtbf_from_events(calib, calib_span)
@@ -78,10 +78,15 @@ def policies_for(calib, C, W):
     kappa = max(int(calib.spike.sum()), 1) / (calib.n * calib.L)  # kills per node-step
     for rec, prec in itertools.product(SYN_RECALL, SYN_PRECISION):
         fa = kappa * rec * (1.0 / prec - 1.0)
-        pols.append(Policy(f"synthetic_r{rec}_p{prec}", "synthetic", thr=rec, fa=fa, action="migrate"))
+        # On top of a Young-Daly safety net: without it, false alarms double as accidental
+        # periodic checkpoints and a worse predictor can look better.
+        pols.append(Policy(f"synthetic_yd_r{rec}_p{prec}", "synthetic", tau=tau_yd, thr=rec, fa=fa,
+                           action="migrate"))
     for q in CKPT_ONLY_BUDGETS:
         pols.append(Policy(f"model_ckpt_q{q}", "signal", signal="risk",
                            thr=ts.threshold_for_budget(calib.risk, q), action="ckpt"))
+    if prefix:
+        pols = [p for p in pols if p.name.startswith(prefix)]
     return pols
 
 
@@ -123,14 +128,14 @@ def run(args):
         spot = float(test.price.sum())
         od = float(sum(OD_PRICE[n[0]] for n in nodes))
         for C in args.ckpt_s:
-            for pol in policies_for(calib, C, W):
+            for pol in policies_for(calib, C, W, args.arms_prefix):
                 for si, s in enumerate(starts):
                     o = ts.simulate(test, pol, s, W, C, R, seed=args.seed + si)
                     o.update(set=set_name, N=n_nodes, C=C, policy=pol.name, start=s, block=f"{set_name}-{si // block_len}",
                              spot_cost=(o["makespan"] / 3600.0) * spot if o["completed"] else float("nan"),
                              od_cost=(W / 3600.0) * od)
                     records.append(o)
-        if set_name == "N15":
+        if set_name == "N15" and not args.arms_prefix:
             for q in BUDGETS:
                 for sig, fl in (("risk", "model"), ("vol", "volatility")):
                     thr = ts.threshold_for_budget(getattr(calib, "risk" if sig == "risk" else "vol"), q)
@@ -143,7 +148,8 @@ def run(args):
     runs["slowdown"] = runs["makespan"] / W
     runs["wasted_frac"] = runs["wasted"] / W
     runs["cost_savings_pct"] = 100.0 * (1.0 - runs["spot_cost"] / runs["od_cost"])
-    runs.to_csv(os.path.join(OUT, "runs.csv.gz"), index=False, compression="gzip")
+    tag = f"_{args.tag}" if args.tag else ""
+    runs.to_csv(os.path.join(OUT, f"runs{tag}.csv.gz"), index=False, compression="gzip")
 
     rows = []
     for (N, C, pol), g in runs.groupby(["N", "C", "policy"]):
@@ -157,9 +163,10 @@ def run(args):
             cost_savings_pct=done.cost_savings_pct.mean(),
         ))
     summary = pd.DataFrame(rows)
-    summary.to_csv(os.path.join(OUT, "summary.csv"), index=False)
-    pd.DataFrame(detection).to_csv(os.path.join(OUT, "detection.csv"), index=False)
-    predictor_quality(trace)
+    summary.to_csv(os.path.join(OUT, f"summary{tag}.csv"), index=False)
+    if not args.arms_prefix:
+        pd.DataFrame(detection).to_csv(os.path.join(OUT, "detection.csv"), index=False)
+        predictor_quality(trace)
     print(f"done in {time.time() - t0:.0f}s; wrote {len(runs)} runs")
 
 
@@ -180,6 +187,8 @@ def predictor_quality(trace):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--arms-prefix", default=None, help="only run policies whose name starts with this")
+    ap.add_argument("--tag", default="", help="suffix for output files, e.g. synth")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--work-hours", type=float, default=12.0)
     ap.add_argument("--restart-s", type=float, default=120.0)
