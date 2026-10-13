@@ -93,7 +93,7 @@ The Transformer on the same features (3 seeds; `ablation.csv`):
 | + cross-AZ divergence | 10.8x (9.9 to 12.3) | 0.876 |
 | + Advisor rate | 9.9x (7.0 to 12.3) | 0.869 |
 | + update cadence | 21.6x (20.7 to 22.5) | 0.943 |
-| + price extremes (1 seed so far) | 32.6x | 0.943 |
+| + price extremes (2 of 3 seeds finished; all-19 run still pending) | 34.8x (32.6 to 37.1) | 0.947 |
 
 The same conclusion holds for both model classes, and gradient boosting is better and far steadier
 (98.5x to 101.4x across seeds, against 7.0x to 13.2x for the Transformer on base features). It is also
