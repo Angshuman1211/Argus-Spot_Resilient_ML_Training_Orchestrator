@@ -6,7 +6,7 @@
 [![Kubernetes](https://img.shields.io/badge/kubernetes-operator-326ce5.svg)](helm/argus)
 [![AWS EKS](https://img.shields.io/badge/AWS-EKS-ff9900.svg)](docs/objective1_result.md)
 
-A three-layer system that predicts EC2 Spot interruptions before they happen and automatically checkpoints + migrates running ML training jobs — zero human intervention. **Validated end-to-end on real AWS EKS.**
+A three-layer system that predicts EC2 Spot interruptions before they happen and automatically checkpoints + migrates running ML training jobs — zero human intervention. The reactive drain-to-resume path is validated on real AWS EKS; the predictive path is evaluated in a local benchmark.
 
 > **Status: complete (Weeks 1–8).** Live-EKS interruption survival captured, a controlled benchmark quantifies when prediction pays, the risk model is trained/calibrated/characterized, and the whole loop is observable in Grafana. Targeting a NeurIPS ML4Sys 2026 workshop poster.
 
@@ -25,7 +25,7 @@ flowchart TB
 
     subgraph L2["Orchestration Layer &mdash; Person A"]
         OP["kopf operator<br/>reconcile loop"]
-        DEC{"risk &gt; 0.65?"}
+        DEC{"risk &gt; threshold?"}
         OP --> DEC
         DEC -->|"yes"| ACT["Flush checkpoint to S3<br/>+ cordon node + reschedule<br/>+ publish SQS risk event"]
     end
@@ -67,7 +67,7 @@ EC2 Spot instances are ~70–90% cheaper than On-Demand but can be reclaimed on 
 | Layer | What it does |
 |-------|--------------|
 | **1. Prediction** (Person B) | Lambda pulls Spot price history every 5 min → S3 feature store → a Transformer scores interruption risk → served via FastAPI `/predict`. |
-| **2. Orchestration** (Person A) | A `kopf` Kubernetes operator (the `SpotResilientJob` CRD) polls `/predict`; when risk crosses `0.65` it writes a `_FLUSH_TRIGGER` to S3, cordons the node, reschedules the pod, and publishes an SQS risk event. |
+| **2. Orchestration** (Person A) | A `kopf` Kubernetes operator (the `SpotResilientJob` CRD) polls `/predict`; when risk crosses the threshold (`0.0015` for the real calibrated model) it writes a `_FLUSH_TRIGGER` to S3, waits for the pod to confirm the flush, cordons the node, reschedules the pod, and publishes an SQS risk event. |
 | **3. Training** | The CIFAR-10 job polls the trigger every 100 batches and saves `model.pt`; a SIGTERM handler checkpoints on drain; the replacement pod resumes from the last epoch. |
 
 The checkpoint mechanism is deliberately **decoupled** — the operator only *signals*; the training pod owns the flush — so the operator never touches training-process internals.
@@ -96,16 +96,16 @@ Only the in-progress epoch's work was lost. The real checkpoint written to S3 du
 
 ### Objective 2 — When does prediction actually pay?
 
-A controlled benchmark (4 arms × 4 interruption rates × 5 reps = **80 trials**, Poisson-scheduled kills). Wasted compute at the fastest rate (MTBF = 120 s):
+A controlled benchmark (4 arms × 4 interruption rates × 5 reps = **80 trials**, Poisson-scheduled kills). Results at the fastest rate (MTBF = 120 s):
 
-| Arm | Wasted compute (s) | Recovery (s) |
-|-----|-------------------:|-------------:|
-| no-protection | 202.3 | — |
-| reactive-on-notice | 169.4 | 58.8 |
-| periodic | 4.3 | 65.7 |
-| **predictive (Argus)** | **0.0** | **5.4** |
+| Arm | Completion | Wasted compute (s) | Makespan (s) | Checkpoints |
+|-----|-----------:|-------------------:|-------------:|------------:|
+| no-protection | 100% | 202.3 | 361.8 | 0 |
+| reactive-on-notice | 100% | 169.4 | 328.0 | 4.8 |
+| periodic | 100% | 4.3 | 158.8 | 24.0 |
+| predictive (fixed 600 s lead) | **20%** (1 of 5) | 0.0 | 353.2 (1 run) | 221.6 |
 
-The argument the paper rides on: **reactive's fixed 2-minute notice stops helping exactly when interruptions come faster than once per ~2 min** (at 120 s MTBF the notice ≈ the interval, so reactive degrades toward no-protection). Predictive's clean wins are **zero wasted compute** and **~12× faster recovery** (5.4 s vs 65.7 s). Honestly noted: *periodic* checkpointing is a strong ML-free baseline on wasted compute, and predictive's zero relies on an assumed lead time — see the write-up. Full table + figures: [`docs/objective2_result.md`](docs/objective2_result.md), [`benchmark/results/`](benchmark/results/).
+What the table shows: **reactive's fixed 2-minute notice stops helping exactly when interruptions come faster than once per ~2 min** (at 120 s MTBF the notice ≈ the interval, so reactive degrades toward no-protection). Predictive's one clean win is **zero wasted compute**, but with an oversized lead it over-migrates and only 1 of 5 runs completes, so its makespan is from a single run. *Periodic* checkpointing, with no ML, matches it on waste and wins on makespan and checkpoint count. In this benchmark the predictive trigger is a configured lead time, not model output (see `Paper/fix_everything_plan.md`). Full table + figures: [`docs/objective2_result.md`](docs/objective2_result.md), [`benchmark/results/`](benchmark/results/).
 
 ### Objective 3 — The risk model (honest secondary result)
 
@@ -113,7 +113,7 @@ Transformer on live `eu-north-1` Spot price history. After fixing the bugs that 
 
 ### Observability
 
-The operator emits Prometheus metrics (`argus_risk_score`, `argus_checkpoints_total`, `argus_jobs_completed_total`); a provisioned Grafana dashboard shows predicted risk climbing across the `0.65` threshold and the proactive checkpoint firing at that instant:
+The operator emits Prometheus metrics (`argus_risk_score`, `argus_checkpoints_total`, `argus_jobs_completed_total`); a provisioned Grafana dashboard shows a mock predictor's risk climbing across a `0.65` demo threshold and the proactive checkpoint firing at that instant (the real model's calibrated scores are far lower, so it uses `0.0015`):
 
 ![Argus Grafana dashboard — risk climbs, crosses 0.65, checkpoints fire](docs/Figures/grafana_dashboard.png)
 

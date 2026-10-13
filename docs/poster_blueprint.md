@@ -86,8 +86,8 @@ wasted compute collapses toward no-protection. *The free 2-min notice stops
 helping exactly when interruptions arrive faster than ~once/2 min* — and (tie to
 §1) that is the large multi-node regime. **Disclosure #2:** predictive's 0.0
 assumes `risk_lead_seconds=300` → handled in §3.3. **Disclosure #3:** periodic
-(no ML) nearly matches on waste and wins makespan/cost; predictive's clean wins =
-zero-waste + ~12× recovery (5.4 s vs 65.7 s). Credit periodic openly.
+(no ML) nearly matches on waste and wins makespan/cost; predictive's only clean win =
+zero wasted compute (recovery time is not comparable: 1 of 5 predictive runs completes at this rate). Credit periodic openly.
 
 ### §3.3 How much lead time does prediction need? (Fig 4) — the guideline
 **DONE** (data: `benchmark/results/leadsweep_table.csv`; Fig 4:
