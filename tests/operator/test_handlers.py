@@ -54,7 +54,7 @@ def env():
         mgr.list_job_pods.return_value = [_pod("Running", "node-a")]
         mgr.get_pod_node.return_value = "node-a"
         mgr.wait.return_value = True
-        mgr.http_get.return_value = _risk(0.01)
+        mgr.http_get.return_value = _risk(0.5)
         yield mgr
 
 
