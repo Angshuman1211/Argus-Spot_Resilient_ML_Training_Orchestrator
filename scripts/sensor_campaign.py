@@ -35,6 +35,8 @@ def main():
     ap.add_argument("--hours", type=float, default=6.0)
     ap.add_argument("--max-launches", type=int, default=150)
     ap.add_argument("--poll-seconds", type=int, default=240)
+    ap.add_argument("--end-utc", help="absolute end, e.g. 2026-10-13T22:41 (overrides --hours; used when resuming)")
+    ap.add_argument("--resume-tag", help="timestamp of an earlier run's CSVs to append to, e.g. 20261013T144104Z")
     a = ap.parse_args()
 
     ec2 = boto3.client("ec2", region_name=REGION)
@@ -48,18 +50,29 @@ def main():
                                                  {"Name": "default-for-az", "Values": ["true"]}])["Subnets"][0]["SubnetId"]
                for az in azs}
 
-    t_end = time.time() + a.hours * 3600
+    if a.end_utc:
+        t_end = dt.datetime.fromisoformat(a.end_utc).replace(tzinfo=dt.timezone.utc).timestamp()
+    else:
+        t_end = time.time() + a.hours * 3600
     os.makedirs(OUT_DIR, exist_ok=True)
-    log_path = os.path.join(OUT_DIR, f"sensor_campaign_{dt.datetime.utcnow():%Y%m%dT%H%M%SZ}.csv")
+    tag = a.resume_tag or f"{dt.datetime.utcnow():%Y%m%dT%H%M%SZ}"
+    log_path = os.path.join(OUT_DIR, f"sensor_campaign_{tag}.csv")
     zone_id = {z["ZoneId"]: z["ZoneName"] for z in ec2.describe_availability_zones()["AvailabilityZones"]}
     score_path = log_path.replace("sensor_campaign_", "placement_scores_")
-    score_log = open(score_path, "w", newline="")
+    # resuming after a restart: append to the same files and keep counting launches toward the cap
+    launches = 0
+    if os.path.exists(log_path):
+        with open(log_path, newline="") as f:
+            launches = sum(1 for row in csv.reader(f) if row and row[-1] == "launched")
+    score_log = open(score_path, "a", newline="")
     score_w = csv.writer(score_log)
-    score_w.writerow(["time_utc", "instance_type", "availability_zone", "placement_score"])
-    log = open(log_path, "w", newline="")
+    if score_log.tell() == 0:
+        score_w.writerow(["time_utc", "instance_type", "availability_zone", "placement_score"])
+    log = open(log_path, "a", newline="")
     w = csv.writer(log)
-    w.writerow(["instance_id", "instance_type", "availability_zone", "event_time_utc", "status"])
-    launches, last_fail = 0, {}
+    if log.tell() == 0:
+        w.writerow(["instance_id", "instance_type", "availability_zone", "event_time_utc", "status"])
+    last_fail = {}
     print(f"campaign until {dt.datetime.utcfromtimestamp(t_end):%H:%M}Z, log {log_path}", flush=True)
 
     def active():
