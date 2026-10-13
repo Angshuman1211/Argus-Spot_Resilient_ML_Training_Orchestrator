@@ -1,5 +1,6 @@
 """Checkpoint/resume semantics of ml/cifar10_job/train.py, with S3 faked in memory."""
 import importlib
+import importlib.util
 import os
 import sys
 import types
@@ -50,16 +51,17 @@ def job(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "torchvision", tv)
     monkeypatch.setitem(sys.modules, "torchvision.transforms", tv.transforms)
     monkeypatch.setitem(sys.modules, "torchvision.datasets", tv.datasets)
-    monkeypatch.syspath_prepend(os.path.abspath(JOB_DIR))
     monkeypatch.chdir(tmp_path)
-    sys.modules.pop("train", None)
-    module = importlib.import_module("train")
+    # Load by path under a unique name: ml/model/train.py is also called "train".
+    spec = importlib.util.spec_from_file_location(
+        "cifar10_job_train", os.path.join(os.path.abspath(JOB_DIR), "train.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     fake = FakeS3()
     monkeypatch.setattr(module, "s3_client", fake)
     monkeypatch.setattr(module.time, "sleep", lambda s: None)
     module.fake_s3 = fake
     yield module
-    sys.modules.pop("train", None)
 
 
 def _fresh(job):

@@ -2,7 +2,7 @@ name: Build and Deploy Operator
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "operator/**"
       - "helm/**"

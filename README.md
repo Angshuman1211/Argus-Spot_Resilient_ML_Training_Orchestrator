@@ -1,6 +1,6 @@
 # Argus — Spot-Resilient ML Training Orchestrator
 
-[![Build](https://github.com/Ganglet/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/Ganglet/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/deploy.yml)
+[![Build](https://github.com/Ganglet/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/deploy.yml/badge.svg?branch=master)](https://github.com/Ganglet/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](ml/api/Dockerfile)
 [![Kubernetes](https://img.shields.io/badge/kubernetes-operator-326ce5.svg)](helm/argus)
