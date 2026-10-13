@@ -1,0 +1,9 @@
+params (chosen on calibration only): {'max_depth': 3, 'learning_rate': 0.03, 'colsample_bytree': 0.8, 'min_child_weight': 5.0, 'neg_per_pos': 10, 'rounds': 307}
+seed 0: best iteration 314
+seed 1: best iteration 211
+seed 2: best iteration 289
+seed 3: best iteration 338
+seed 4: best iteration 352
+TEST all: lift 101.4x AUROC 0.980 | in-hour-end AUROC 0.939 lift 25.5x | eu-north-1 42.2x | brier 0.00136 vs 0.00147
+at best-F1: {'threshold': 0.199361190199852, 'precision': 0.22082018927444794, 'recall': 0.1935706878672658, 'alarm_rate': 0.0012904486446218416}
+seed variability: [(0, 101.4), (1, 100.5), (2, 98.5), (3, 100.0), (4, 99.7)]

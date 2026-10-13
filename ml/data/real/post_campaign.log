@@ -1,1 +1,75 @@
 14:43:08Z waiting until 2026-10-13 22:41Z
+14:51:01Z waiting until 2026-10-13 22:41Z
+22:41:03Z START stop remaining sensors: bash scripts\stop_reclaim_sensors.sh
+22:41:05Z FAILED (1) stop remaining sensors
+<3>WSL (11 - Relay) ERROR: CreateProcessCommon:818: execvpe(/bin/bash) failed: No such file or directory
+22:41:05Z waiting 20 minutes for CloudTrail
+23:01:05Z START pull reclaim labels: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/data/pull_reclaim_labels.py
+23:01:50Z OK pull reclaim labels
+i-0109b4150049444f8 eu-north-1 2026-10-13 21:26:52+00:00      m5.large       eu-north-1a      spot 2026-10-13 21:14:16+00:00           12.600000
+i-04b1f7aba5def145b eu-north-1 2026-10-13 21:32:11+00:00     m6i.large       eu-north-1a      spot 2026-10-13 21:14:17+00:00           17.900000
+i-0df620e6c99e68648 eu-north-1 2026-10-13 21:35:49+00:00      m5.large       eu-north-1a      spot 2026-10-13 21:31:05+00:00            4.733333
+i-01ec68e9f9374c762 eu-north-1 2026-10-13 22:00:47+00:00      m5.large       eu-north-1b      spot 2026-10-13 21:51:54+00:00            8.883333
+i-0d058559122906ba8 eu-north-1 2026-10-13 22:02:42+00:00     m6i.large       eu-north-1a      spot 2026-10-13 21:35:10+00:00           27.533333
+i-097f1924c7e285ba1 eu-north-1 2026-10-13 22:03:14+00:00     m6i.large       eu-north-1c      spot 2026-10-13 20:12:11+00:00          111.050000
+i-0f8e233ded7d81ef1 eu-north-1 2026-10-13 22:04:01+00:00      m5.large       eu-north-1a      spot 2026-10-13 21:51:52+00:00           12.150000
+i-00c353815f7d1cf34 eu-north-1 2026-10-13 22:07:57+00:00     m6i.large       eu-north-1a      spot 2026-10-13 22:04:22+00:00            3.583333
+i-0549cc8418a33b556 eu-north-1 2026-10-13 22:07:57+00:00     m6i.large       eu-north-1c      spot 2026-10-13 22:04:51+00:00            3.100000
+i-0a751a341d147f70d eu-north-1 2026-10-13 22:16:27+00:00     m6i.large       eu-north-1c      spot 2026-10-13 22:09:14+00:00            7.216667
+i-0d630599d937078cc eu-north-1 2026-10-13 22:20:57+00:00      m5.large       eu-north-1b      spot 2026-10-13 22:17:25+00:00            3.533333
+i-0d177c9fc95e37687 eu-north-1 2026-10-13 22:22:18+00:00      m5.large       eu-north-1a      spot 2026-10-13 22:17:22+00:00            4.933333
+23:01:50Z START evaluate against real reclaims: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/model/evaluate_real_reclaims.py
+23:02:34Z OK evaluate against real reclaims
+instance age (control)     0.773   [0.708, 0.839]
+pool prior                 0.897   [0.862, 0.926]
+proxy spike (future)       0.500   [0.500, 0.500]
+learned (cv by hour)       0.805   [0.742, 0.865]
+
+within the first 30 minutes of an instance's life (512 steps, 93 positive):
+  price model                0.521   [0.428, 0.626]
+  placement score            0.795   [0.735, 0.855]
+  instance age (control)     0.749   [0.673, 0.813]
+  pool prior                 0.875   [0.833, 0.913]
+  proxy spike (future)       0.500   [0.500, 0.500]
+  learned (cv by hour)       0.814   [0.747, 0.871]
+23:02:34Z START train real-label model: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/model/train_real_label_model.py
+23:03:15Z OK train real-label model
+by_hour  placement score alone                 0.789   [0.730, 0.843]
+by_hour  price model alone                     0.547   [0.464, 0.622]
+by_hour  instance age alone                    0.771   [0.696, 0.838]
+by_pool  placement (logistic)                  0.751   [0.684, 0.826]
+by_pool  placement+age (logistic)              0.808   [0.742, 0.873]
+by_pool  placement+age (boosted)               0.801   [0.736, 0.868]
+by_pool  placement+age+price (logistic)        0.811   [0.743, 0.865]
+by_pool  placement+age+price (boosted)         0.795   [0.734, 0.859]
+by_pool  price only (logistic)                 0.395   [0.334, 0.469]
+by_pool  placement score alone                 0.789   [0.730, 0.846]
+by_pool  price model alone                     0.547   [0.472, 0.635]
+by_pool  instance age alone                    0.771   [0.696, 0.849]
+23:03:15Z START paper numbers: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe Paper/v2/build_numbers.py
+23:03:15Z OK paper numbers
+wrote 180 macros
+23:03:15Z START paper tables: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe Paper/v2/build_tables.py
+23:03:16Z OK paper tables
+tables written to F:\Argus_boto3\Paper\v2\tables | measured S3 rate used: 114 MB/s
+23:03:16Z START paper figures: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe Paper/v2/make_figures.py
+23:03:16Z FAILED (1) paper figures
+Traceback (most recent call last):
+  File "F:\Argus_boto3\Paper\v2\make_figures.py", line 9, in <module>
+    import matplotlib
+ModuleNotFoundError: No module named 'matplotlib'
+23:03:16Z START compile paper: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\tectonic_bin\tectonic.exe -X compile argus_v2.tex
+23:03:17Z OK compile paper
+note: Writing `argus_v2.pdf` (100.044921875 KiB)
+note: Skipped writing 3 intermediate files (use --keep-intermediates to keep them)
+Fontconfig error: Cannot load default config file: No such file: (null)
+warning: argus_v2.tex:49: Underfull \vbox (badness 2762) has occurred while \output is active
+warning: argus_v2.tex:132: Underfull \vbox (badness 1424) has occurred while \output is active
+warning: argus_v2.tex:174: Underfull \vbox (badness 7379) has occurred while \output is active
+warning: argus_v2.tex:132: Underfull \vbox (badness 1424) has occurred while \output is active
+warning: argus_v2.bbl:13: Underfull \vbox (badness 7379) has occurred while \output is active
+warning: argus_v2.bbl:19: Underfull \hbox (badness 2635) in paragraph at lines 14--19
+warning: argus_v2.tex:111: Underfull \vbox (badness 3746) has occurred while \output is active
+warning: argus_v2.bbl:19: Underfull \hbox (badness 2635) in paragraph at lines 14--19
+warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
+23:03:17Z START stage results: git add -f Paper/v2 ml/data/real ml/model/wide_results ml/model/final

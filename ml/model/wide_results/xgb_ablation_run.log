@@ -1,0 +1,30 @@
+controls: {'clock_only_all': {'positives': 2893, 'base_rate': 0.0014721088047677396, 'auprc': 0.005888782815257504, 'lift': 4.00023612126048, 'auroc': 0.8755602438956028}, 'phase_windows': 491273, 'phase_positives': 2893, 'windows_outside_phase_positives': 0}
+C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Lib\site-packages\xgboost\core.py:751: UserWarning: [12:01:35] WARNING: C:\actions-runner\_work\xgboost\xgboost\src\common\error_msg.cc:62: Falling back to prediction using DMatrix due to mismatched devices. This might lead to higher memory usage and slower performance. XGBoost is running on: cuda:0, while the input data is on: cpu.
+Potential solutions:
+- Use a data structure that matches the device ordinal in the booster.
+- Set the device for booster before call to inplace_predict.
+
+This warning will only be shown once.
+
+  return func(**kwargs)
+base13                   seed 0: all lift 14.9x AUROC 0.948 | in-phase AUROC 0.803 lift 3.8x  (16s)
+base13                   seed 1: all lift 14.5x AUROC 0.946 | in-phase AUROC 0.802 lift 3.7x  (12s)
+base13                   seed 2: all lift 15.0x AUROC 0.945 | in-phase AUROC 0.800 lift 3.8x  (15s)
+base13+az_divergence     seed 0: all lift 15.0x AUROC 0.945 | in-phase AUROC 0.804 lift 3.9x  (12s)
+base13+az_divergence     seed 1: all lift 15.4x AUROC 0.945 | in-phase AUROC 0.801 lift 4.0x  (14s)
+base13+az_divergence     seed 2: all lift 15.5x AUROC 0.945 | in-phase AUROC 0.800 lift 4.0x  (14s)
+base13+advisor_rate      seed 0: all lift 14.3x AUROC 0.945 | in-phase AUROC 0.807 lift 3.7x  (15s)
+base13+advisor_rate      seed 1: all lift 14.3x AUROC 0.943 | in-phase AUROC 0.805 lift 3.7x  (15s)
+base13+advisor_rate      seed 2: all lift 14.5x AUROC 0.943 | in-phase AUROC 0.807 lift 3.8x  (15s)
+base13+update_density    seed 0: all lift 26.9x AUROC 0.966 | in-phase AUROC 0.868 lift 6.7x  (8s)
+base13+update_density    seed 1: all lift 26.8x AUROC 0.965 | in-phase AUROC 0.865 lift 6.7x  (9s)
+base13+update_density    seed 2: all lift 26.5x AUROC 0.966 | in-phase AUROC 0.867 lift 6.6x  (10s)
+base13+price_extremes    seed 0: all lift 49.2x AUROC 0.972 | in-phase AUROC 0.920 lift 12.9x  (15s)
+base13+price_extremes    seed 1: all lift 46.3x AUROC 0.971 | in-phase AUROC 0.920 lift 12.4x  (17s)
+base13+price_extremes    seed 2: all lift 50.2x AUROC 0.973 | in-phase AUROC 0.921 lift 13.1x  (10s)
+all19                    seed 0: all lift 94.2x AUROC 0.982 | in-phase AUROC 0.938 lift 23.6x  (10s)
+all19                    seed 1: all lift 91.7x AUROC 0.971 | in-phase AUROC 0.933 lift 23.4x  (11s)
+all19                    seed 2: all lift 93.8x AUROC 0.982 | in-phase AUROC 0.938 lift 23.6x  (11s)
+all19_no_clock           seed 0: all lift 93.7x AUROC 0.973 | in-phase AUROC 0.933 lift 23.9x  (7s)
+all19_no_clock           seed 1: all lift 91.7x AUROC 0.982 | in-phase AUROC 0.937 lift 23.0x  (10s)
+all19_no_clock           seed 2: all lift 91.8x AUROC 0.980 | in-phase AUROC 0.936 lift 23.1x  (9s)

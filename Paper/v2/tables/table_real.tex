@@ -2,11 +2,11 @@
 \toprule
 Predictor & AUROC & 95\% interval & First 30 min \\
 \midrule
-Price-history model (retrained) & 0.44 & [0.40, 0.54] & 0.36 \\
-AWS Spot placement score & 0.81 & [0.67, 0.90] & 0.89 \\
-Reclaim rate of the pool (leave one hour out) & 0.87 & [0.79, 0.93] & 0.86 \\
-Instance age, younger is riskier (control) & 0.72 & [0.40, 0.82] & 0.73 \\
-Logistic model on placement, age, price risk & 0.76 & [0.61, 0.95] & 0.81 \\
+Price-history model (retrained) & 0.54 & [0.46, 0.62] & 0.52 \\
+AWS Spot placement score & 0.79 & [0.74, 0.84] & 0.79 \\
+Reclaim rate of the pool (leave one hour out) & 0.90 & [0.86, 0.93] & 0.88 \\
+Instance age, younger is riskier (control) & 0.77 & [0.71, 0.84] & 0.75 \\
+Logistic model on placement, age, price risk & 0.81 & [0.74, 0.86] & 0.81 \\
 Price spike in the next 15 min (not causal) & 0.50 & [0.50, 0.50] & 0.50 \\
 \bottomrule
 \end{tabular}
