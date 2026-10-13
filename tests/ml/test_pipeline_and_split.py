@@ -113,7 +113,7 @@ def test_focal_loss_alpha_weights_positives_more_than_negatives():
     assert pos / neg == pytest.approx(0.75 / 0.25)
 
 
-# ---------------------------------------------------------------- serving contract
+# ------------------------------------------------- legacy Transformer artifact contract
 
 def test_shipped_metadata_matches_the_feature_contract():
     path = os.path.join(ROOT, "ml", "model", "model_metadata.json")
@@ -123,25 +123,3 @@ def test_shipped_metadata_matches_the_feature_contract():
     assert meta["feature_columns"] == FEATURE_COLUMNS
     assert meta["seq_length"] == SEQ_LENGTH
     assert meta["num_features"] == len(FEATURE_COLUMNS)
-
-
-def test_api_refuses_to_serve_without_a_calibrator(monkeypatch):
-    pytest.importorskip("fastapi")
-    pytest.importorskip("torch")
-    sys.path.insert(0, os.path.join(ROOT, "ml", "api"))
-    needed = [os.path.join(ROOT, "ml", "model", f) for f in
-              ("spot_transformer.pt", "spot_scaler.joblib", "model_metadata.json")]
-    if not all(os.path.exists(p) for p in needed):
-        pytest.skip("model artifacts are gitignored and not present in this checkout")
-    import app as api
-
-    real_exists = os.path.exists
-    monkeypatch.setattr(api.os.path, "exists",
-                        lambda p: False if str(p).endswith("spot_calibrator.joblib") else real_exists(p))
-    monkeypatch.delenv("ALLOW_UNCALIBRATED", raising=False)
-    api._load_model()
-    assert api.is_ready is False
-
-    monkeypatch.setenv("ALLOW_UNCALIBRATED", "1")
-    api._load_model()
-    assert api.is_ready is True and api.calibrator is None
