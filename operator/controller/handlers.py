@@ -23,6 +23,7 @@ from controller import scheduler, sqs_publisher
 from controller.metrics import (
     checkpoint_count,
     checkpoint_wait_timeouts,
+    predict_failures,
     risk_score_gauge,
     job_completion_count,
 )
@@ -32,6 +33,9 @@ logger = logging.getLogger(__name__)
 PREDICT_SERVICE_URL = os.environ.get("PREDICT_SERVICE_URL", "http://localhost:8000")
 RISK_THRESHOLD_DEFAULT = float(os.environ.get("RISK_THRESHOLD", "0.0015"))
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
+MAX_FAILURE_RETRIES = int(os.environ.get("MAX_FAILURE_RETRIES", "3"))
+UNCORDON_AFTER_SECONDS = int(os.environ.get("UNCORDON_AFTER_SECONDS", "600"))
+DEFAULT_AZ = os.environ.get("DEFAULT_AZ", "eu-north-1a")
 CHECKPOINT_WAIT_SECONDS = float(os.environ.get("CHECKPOINT_WAIT_SECONDS", "60"))
 CHECKPOINT_WAIT_POLL_SECONDS = float(os.environ.get("CHECKPOINT_WAIT_POLL_SECONDS", "2"))
 
@@ -120,6 +124,32 @@ def on_delete(spec, name, namespace, **kwargs):
     logger.info(f"[DELETE] SpotResilientJob '{name}' deleted")
 
 
+def _maybe_uncordon(name, status, patch, pods):
+    """
+    Releases a node this operator cordoned during an earlier migration.
+
+    Without this, a cordon is permanent: on a single-node cluster the replacement pod
+    can never schedule, and on EKS the cordoned node is lost to the job forever.
+    Uncordon once a replacement pod is Running on another node, or after a timeout.
+    """
+    node = status.get("cordonedNode")
+    if not node:
+        return
+    replacement_ok = any(
+        p.status.phase == "Running" and p.spec.node_name != node for p in pods
+    )
+    timed_out = time.time() - float(status.get("cordonedAt", 0)) > UNCORDON_AFTER_SECONDS
+    if not (replacement_ok or timed_out):
+        return
+    try:
+        scheduler.uncordon_node(node)
+    except Exception as e:
+        logger.warning(f"[RECONCILE] '{name}' uncordon of '{node}' failed: {e}")
+        return
+    patch.status["cordonedNode"] = None
+    patch.status["cordonedAt"] = None
+
+
 @kopf.timer("argus.io", "v1", "spotresilientjobs", interval=POLL_INTERVAL)
 def reconcile(spec, name, namespace, status, patch, **kwargs):
     current_phase = status.get("phase", "Running")
@@ -128,53 +158,63 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
     checkpoint_path = spec["checkpointPath"]
     last_step = status.get("lastCheckpointStep", 0)
     instance_type = fallback_types[0]
+    az = spec.get("availabilityZone", DEFAULT_AZ)
 
-    if current_phase in ("Checkpointing", "Migrating", "Succeeded"):
-        logger.info(f"[RECONCILE] '{name}' skipped â€” already in phase '{current_phase}'")
+    if current_phase == "Failed":
+        retries = status.get("retryCount", 0)
+        if retries >= MAX_FAILURE_RETRIES:
+            logger.error(f"[RECONCILE] '{name}' stays Failed after {retries} retries")
+            return
+        patch.status["phase"] = "Running"
+        patch.status["retryCount"] = retries + 1
+        logger.warning(f"[RECONCILE] '{name}' Failed - retry {retries + 1}/{MAX_FAILURE_RETRIES}")
         return
 
-    # Check for job completion
+    if current_phase in ("Checkpointing", "Migrating", "Succeeded"):
+        logger.info(f"[RECONCILE] '{name}' skipped - already in phase '{current_phase}'")
+        return
+
+    # Check for job completion and release any node we cordoned earlier
+    pods = []
     try:
         pods = scheduler.list_job_pods(name, namespace)
-        succeeded_pods = [p for p in pods if p.status.phase == "Succeeded"]
-        if succeeded_pods:
-            patch.status["phase"] = "Succeeded"
-            job_completion_count.labels(job_name=name).inc()
-            logger.info(f"[RECONCILE] '{name}' job completed successfully")
-            return
     except Exception as e:
         logger.warning(f"[RECONCILE] Failed to list pods for '{name}': {e}")
+    if any(p.status.phase == "Succeeded" for p in pods):
+        patch.status["phase"] = "Succeeded"
+        job_completion_count.labels(job_name=name).inc()
+        logger.info(f"[RECONCILE] '{name}' job completed successfully")
+        return
+    _maybe_uncordon(name, status, patch, pods)
 
     # 1. Poll prediction service
     try:
         response = httpx.get(
             f"{PREDICT_SERVICE_URL}/predict",
-            params={"instance_type": instance_type, "az": "eu-north-1a"},
+            params={"instance_type": instance_type, "az": az},
             timeout=10.0,
         )
         response.raise_for_status()
         risk = response.json()
     except Exception as e:
-        logger.warning(f"[RECONCILE] '{name}' — predict service unreachable: {e}")
+        predict_failures.labels(job_name=name).inc()
+        logger.warning(f"[RECONCILE] '{name}' - predict service unreachable: {e}")
         return
 
     risk_score = risk["risk_score"]
     patch.status["lastRiskScore"] = risk_score
-    
-    # Update prometheus gauge
-    risk_score_gauge.labels(job_name=name, instance_type=instance_type, az="eu-north-1a").set(risk_score)
+    risk_score_gauge.labels(job_name=name, instance_type=instance_type, az=az).set(risk_score)
 
     logger.info(
-        f"[RECONCILE] '{name}' | risk={risk_score:.3f} threshold={risk_threshold} | phase={current_phase}"
+        f"[RECONCILE] '{name}' | risk={risk_score:.4f} threshold={risk_threshold} | phase={current_phase}"
     )
 
     if risk_score <= risk_threshold:
         return
 
-    # 2. Risk exceeded — checkpoint + migrate
-    logger.warning(f"[RECONCILE] '{name}' risk {risk_score:.3f} > {risk_threshold} — triggering migration")
+    # 2. Risk exceeded: checkpoint, confirm the flush, then migrate
+    logger.warning(f"[RECONCILE] '{name}' risk {risk_score:.4f} > {risk_threshold} - triggering migration")
 
-    patch.status["phase"] = "Checkpointing"
     try:
         trigger_s3_checkpoint(name, checkpoint_path)
         patch.status["lastCheckpointStep"] = last_step + 1
@@ -201,18 +241,19 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
             job_name=name,
             risk_score=risk_score,
             instance_type=instance_type,
-            az="eu-north-1a",
+            az=az,
             action="checkpoint_and_migrate",
         )
     except Exception as e:
         logger.warning(f"[RECONCILE] '{name}' SQS publish failed (non-fatal): {e}")
 
     # 4. Cordon node + reschedule pod
-    patch.status["phase"] = "Migrating"
     try:
         node_name = scheduler.get_pod_node(name, namespace)
         if node_name:
             scheduler.cordon_node(node_name)
+            patch.status["cordonedNode"] = node_name
+            patch.status["cordonedAt"] = time.time()
         scheduler.reschedule_pod(name, namespace, fallback_types)
     except Exception as e:
         logger.error(f"[RECONCILE] '{name}' reschedule failed: {e}")
@@ -220,4 +261,5 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
         return
 
     patch.status["phase"] = "Running"
-    logger.info(f"[RECONCILE] '{name}' migration complete — back to Running")
+    patch.status["retryCount"] = 0
+    logger.info(f"[RECONCILE] '{name}' migration complete - back to Running")

@@ -38,6 +38,10 @@ spec:
                   minimum: 0.0
                   maximum: 1.0
                   description: Operator triggers checkpoint+migrate when risk_score exceeds this
+                availabilityZone:
+                  type: string
+                  default: eu-north-1a
+                  description: AZ passed to the prediction service
                 instanceFallback:
                   type: array
                   minItems: 1
@@ -52,10 +56,21 @@ spec:
                   description: Most recent risk score from the prediction service
                 lastCheckpointStep:
                   type: integer
-                  description: Training step at which the last checkpoint was flushed
+                  description: Number of checkpoint triggers issued by the operator
+                retryCount:
+                  type: integer
+                  description: Consecutive Failed to Running retries
+                cordonedNode:
+                  type: string
+                  nullable: true
+                  description: Node this operator cordoned and has not yet released
+                cordonedAt:
+                  type: number
+                  nullable: true
+                  description: Unix time of the cordon
                 phase:
                   type: string
-                  enum: [Pending, Running, Checkpointing, Migrating, Completed, Failed]
+                  enum: [Pending, Running, Checkpointing, Migrating, Succeeded, Completed, Failed]
                   description: Current lifecycle phase of the job
       subresources:
         status: {}

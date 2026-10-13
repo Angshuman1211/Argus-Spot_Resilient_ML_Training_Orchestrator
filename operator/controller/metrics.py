@@ -17,6 +17,11 @@ checkpoint_wait_timeouts = Counter(
     "Migrations started without a confirmed checkpoint flush", ["job_name"]
 )
 
+predict_failures = Counter(
+    "argus_predict_failures_total",
+    "Polls of the prediction service that failed", ["job_name"]
+)
+
 def start_metrics_server():
     port = int(os.environ.get("METRICS_PORT", 8080))
     start_http_server(port)
