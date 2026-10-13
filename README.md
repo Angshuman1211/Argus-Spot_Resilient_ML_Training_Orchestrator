@@ -160,7 +160,7 @@ Run it: `./scripts/monitoring.sh up` → `./scripts/monitoring.sh open`. See [`d
 
 - **Objective 1** used an *injected* (schema-conformant) reclaim, not an AWS-issued FIS reclaim.
 - **Objective 2** (Poisson benchmark) predictive's zero-waste assumed a configured lead time, not model output; the trace-driven re-run above replaces it. Kills there are still a price-spike proxy, and the job is simulated (mechanics, not SOTA accuracy).
-- **Objective 3** is measured on a proxy label (price spikes). Two real reclaims showed no price signal, so the model's skill at predicting reclaims is unproven; real labels are being collected (`scripts/launch_reclaim_sensors.sh`, `ml/data/pull_reclaim_labels.py`).
+- **Objective 3** is measured on a proxy label (price spikes). Two real reclaims showed no price signal, so the model's skill at predicting reclaims is unproven; a time-capped sensor fleet to collect real labels is ready but has not been run (`scripts/launch_reclaim_sensors.sh`, `ml/data/pull_reclaim_labels.py`).
 - Real Spot on the primary account was gated by a Free-Tier restriction for most of the build (ADR-005), so Week-6 nodes were On-Demand.
 
 Owning these is the point — see the framing in [`docs/poster_blueprint.md`](docs/poster_blueprint.md).
