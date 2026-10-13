@@ -1,5 +1,11 @@
 # Trace-driven benchmark: does prediction pay when it has to predict?
 
+> **Update (October 2026).** Sections 1 to 6 are the first replay (Jan to Apr slice, original Transformer) and
+> their conclusions about the *original model* stand. Section 7 repeats the benchmark on October data with the
+> model retrained on 100x more data (`docs/wide_model_result.md`) and changes the answer for the regime that
+> motivates the project. Read Section 7 for the current result.
+
+
 This replaces the Poisson-kill benchmark as the evidence for the paper's central question. The old
 benchmark could not test prediction: Poisson kills carry no signal to learn, and its "predictive" arm
 fired at (kill time minus a configured lead), so it was an oracle (see `docs/objective2_result.md`).
@@ -159,7 +165,7 @@ alarms cluster, so read the table as an optimistic bound.
 - **The shipped checkpoint is a favourable draw** (21.8x vs a 14.7x five-seed mean), and it is weaker on the
   calibration slice.
 
-## 6. What this means for the paper
+## 6. What this means for the paper (first slice; Section 7 supersedes it for the model)
 
 The defensible claim is a guideline and a negative result, not "prediction beats checkpointing":
 
@@ -173,3 +179,57 @@ The defensible claim is a guideline and a negative result, not "prediction beats
 This directly answers reviewer haku's points 1, 2, 3, 4 and 7: the predictor is evaluated as a predictor
 (Section 1), there is a non-learned baseline (volatility rule, Advisor tier), the predictive arm is no longer
 a configured parameter, and the single-run 0.0 s headline is gone.
+
+## 7. Retrained model on October data (current result)
+
+Same simulator and policies (`benchmark/trace_sim.py`, 20 tests), new inputs: the last 9 days of eu-north-1
+prices (4 to 13 October) for the original 15 series, scored causally by (a) the retrained model and (b) the
+old shipped Transformer on identical windows (`ml/model/score_trace_wide.py`). The slice holds **66** spike
+events (7.3 per day across the fleet, against 3.1 per day in the first slice), so unprotected jobs are
+interrupted far more often. Alarm budgets were extended to 10% and 20%.
+
+**Selection protocol.** Choosing the alarm budget by looking at test results would be tuning on test. Instead
+the simulator was also run on the calibration slice (`--split calib`, `results/trace_oct_new_calib`), the
+budget with the lowest calibration slowdown was picked per (fleet size, checkpoint cost), and only that choice
+is reported on the test slice. It selected a 10% budget in most cells (20% for single nodes at cheap
+checkpoints).
+
+Slowdown on the test slice, 95% block-bootstrap CI (`results/trace_oct_new/summary.csv`):
+
+| Nodes | Checkpoint | Model (budget chosen on calibration) | Young-Daly | Reactive | Periodic 1 h | None |
+|---|---|---|---|---:|---:|---:|
+| 15 | 10 s | 1.057 [1.042, 1.077] | 1.058 [1.052, 1.064] | **1.019** | 1.365 | 4.248 |
+| 15 | 60 s | 1.070 [1.056, 1.085] | 1.138 [1.126, 1.149] | **1.019** | 1.381 | 4.248 |
+| 15 | 300 s | **1.138 [1.124, 1.155]** | 1.339 [1.314, 1.366] | 4.248 | 1.466 | 4.248 |
+| 5 | 10 s | 1.055 [1.051, 1.059] | 1.032 [1.030, 1.034] | **1.006** | 1.052 | 1.585 |
+| 5 | 60 s | 1.065 [1.050, 1.082] | 1.074 [1.071, 1.078] | **1.006** | 1.067 | 1.585 |
+| 5 | 300 s | **1.109 [1.093, 1.125]** | 1.173 [1.165, 1.184] | 1.585 | 1.134 | 1.585 |
+| 1 | 10 s | 1.030 [1.024, 1.038] | 1.014 [1.013, 1.015] | **1.002** | 1.017 | 1.214 |
+| 1 | 60 s | 1.038 [1.032, 1.046] | 1.033 [1.030, 1.037] | **1.002** | 1.030 | 1.214 |
+| 1 | 300 s | 1.084 [1.073, 1.094] | **1.073** [1.067, 1.079] | 1.214 | 1.098 | 1.214 |
+
+Bold is the best entry in the row. Detection of the 66 events at the 10% budget (`detection.csv`): the
+retrained model catches **74.2% with 9.5% precision** (11.6 alarms per node per day), the old model **10.6%
+with 0.8%**. At the 5% budget it is 60.6% and 17.6%.
+
+What changed against the first slice:
+
+1. **A model-driven policy beats every non-learned baseline in the large-checkpoint, many-node regime.** At 15
+   nodes and 300 s checkpoints it reaches 1.138x against 1.339x for Young-Daly, a 15% reduction with
+   non-overlapping intervals, using about a third of the checkpoints. A checkpoint-only variant with no
+   migration assumption is nearly as good (1.152x at the 10% budget), so the win does not hinge on the
+   "migrated nodes are safe" assumption. At 5 nodes it still beats Young-Daly (1.109x vs 1.173x) but only
+   edges the arbitrary 1-hour periodic policy (1.134x), whose interval happens to suit this fleet.
+2. **Reactive is still best while a checkpoint fits the notice**, at every fleet size, and a model does not
+   change that. Reactive collapses to no protection once the checkpoint outlasts the 2-minute notice.
+3. **A single node does not benefit.** Young-Daly or reactive is as good or better.
+4. **The old model would have hurt:** at the same 10% budget it gives 1.822x, 1.915x and 2.479x at 10, 60 and
+   300 s (15 nodes), worse than Young-Daly everywhere.
+5. Adding the model on top of Young-Daly (the hybrid arms) is no longer attractive: it pays Young-Daly's
+   overhead and still the migration costs. The model works as the primary trigger, not as an add-on.
+
+**The caveats that matter more than the table.** The kills are price spikes, which the retrained model
+predicts well, but the only two real reclaims on record (`docs/wide_model_result.md`, Section 7) showed no
+price signal at all. So this section shows that *if* reclaims followed price spikes, a good predictor would
+pay off in the large-checkpoint regime; it does not show that they do. It is also one 9-day slice, with
+correlated series, so the intervals are optimistic. Real reclaim labels are the open problem.

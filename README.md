@@ -112,28 +112,39 @@ What the table shows: **reactive's fixed 2-minute notice stops helping exactly w
 #### Trace-driven re-run (v2): the predictor has to actually predict
 
 The table above uses Poisson kills and a configured lead time, so it cannot test prediction. The v2 benchmark
-replays the held-out slice of real eu-north-1 Spot price traces with the shipped model's real, causal risk
-scores driving the policy, on a synchronous multi-node job (`benchmark/trace_sim.py`, 154k simulated runs).
-Slowdown vs ideal at 15 nodes (1.0 = no loss), checkpoint cost 10 s / 60 s / 300 s:
+replays real eu-north-1 Spot price history with the model's real, causal risk scores driving the policy, on a
+synchronous multi-node job (`benchmark/trace_sim.py`, 20 tests, hundreds of thousands of simulated runs). The
+latest slice is 4 to 13 October (66 price-spike events); the alarm budget is chosen on a separate calibration
+slice. Slowdown vs ideal at 15 nodes (1.0 = no loss), checkpoint cost 10 s / 60 s / 300 s:
 
 | Policy | 10 s | 60 s | 300 s |
 |---|---:|---:|---:|
-| no protection | 3.06 | 3.06 | 3.06 |
-| reactive on 2-min notice | 1.01 | 1.01 | **3.08** |
-| periodic, Young-Daly interval | 1.03 | 1.08 | 1.19 |
-| model alarms (checkpoint + migrate) | 1.45 | 1.46 | 1.52 |
-| Young-Daly + model alarms | 1.04 | 1.09 | 1.20 |
-| oracle (5 min perfect warning) | 1.00 | 1.01 | 1.01 |
+| no protection | 4.25 | 4.25 | 4.25 |
+| reactive on 2-min notice | **1.02** | **1.02** | 4.25 |
+| periodic, Young-Daly interval | 1.06 | 1.14 | 1.34 |
+| old model alarms (same 10% budget) | 1.82 | 1.92 | 2.48 |
+| **retrained model alarms** | 1.06 | 1.07 | **1.14** |
+| oracle (5 min perfect warning) | 1.01 | 1.01 | 1.03 |
 
-Findings: reactive is near-optimal until a checkpoint no longer fits the 2-minute notice, then it collapses to
-no protection; Young-Daly periodic handles every size; the current model (19% recall, 7% precision at the
-event level, on a proxy label) does not beat periodic and adds nothing measurable on top of it; a predictor
-would need roughly 50% recall to matter clearly. Full method, caveats and the "how good must a predictor be"
-sweep: [`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md).
+Findings: reactive is best while a checkpoint fits the 2-minute notice; once it does not (large models),
+reactive collapses and the retrained model beats every non-learned baseline (1.14x vs 1.34x for Young-Daly,
+non-overlapping intervals). The old model would have hurt. A single node gains nothing. Kills here are price
+spikes, which the model now predicts well, but the only two real reclaims on record showed no price signal, so
+this is conditional on the proxy. Method, selection protocol and caveats:
+[`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md).
 
-### Objective 3 — The risk model (honest secondary result)
+### Objective 3 — The risk model
 
-Transformer on live `eu-north-1` Spot price history. After fixing the bugs that made it useless (train/serve scaler skew — the original flat `0.0419`; train/val leakage; a no-op FocalLoss `alpha`; missing calibration): **14.68× base-rate lift, 5-seed mean, 95% CI ≈ [9.9×, 19.5×]** — on a **proxy label** (price spikes), not real reclaims. Presented as an **advisory** signal; the ceiling is label quality, and real interruption ground truth is future work. Details: [`docs/objective3_result.md`](docs/objective3_result.md).
+Retrained in October on 100x more data (8 regions, 768 series, 20.8k training positives) with gradient
+boosting on engineered features. On an untouched, later test slice it reaches **101x lift (AUROC 0.980), 25.5x
+among the windows where a spike is possible at all**, steady across seeds (98.5x to 101.4x). Three honest
+points: the old shipped model scores only 2.2x on the same windows (its 21.8x did not hold up out of time);
+a clock-only rule already gets 4x because AWS now updates prices hourly; and two real Spot reclaims on record
+(c5.xlarge and m5.large in eu-north-1b, minutes after launch) were not flagged by either model. The two
+earlier-rejected features (cross-AZ divergence, Advisor rate) are now rejected with multi-seed evidence; update
+cadence and price position are what carry the signal. Details and all tables:
+[`docs/wide_model_result.md`](docs/wide_model_result.md). The prediction service computes its features live
+from recent prices (`ml/api/`, `PRICE_SOURCE=ec2|s3|csv`) with the same code that trained the model.
 
 ### Observability
 
@@ -149,7 +160,7 @@ Run it: `./scripts/monitoring.sh up` → `./scripts/monitoring.sh open`. See [`d
 
 - **Objective 1** used an *injected* (schema-conformant) reclaim, not an AWS-issued FIS reclaim.
 - **Objective 2** (Poisson benchmark) predictive's zero-waste assumed a configured lead time, not model output; the trace-driven re-run above replaces it. Kills there are still a price-spike proxy, and the job is simulated (mechanics, not SOTA accuracy).
-- **Objective 3** is measured on a proxy label (price spikes), so the model is advisory, not automation-grade.
+- **Objective 3** is measured on a proxy label (price spikes). Two real reclaims showed no price signal, so the model's skill at predicting reclaims is unproven; real labels are being collected (`scripts/launch_reclaim_sensors.sh`, `ml/data/pull_reclaim_labels.py`).
 - Real Spot on the primary account was gated by a Free-Tier restriction for most of the build (ADR-005), so Week-6 nodes were On-Demand.
 
 Owning these is the point — see the framing in [`docs/poster_blueprint.md`](docs/poster_blueprint.md).
@@ -234,6 +245,7 @@ Born from a \$66 EKS cluster left running unnoticed. EKS/NAT are hourly billers 
 - [`docs/objective1_result.md`](docs/objective1_result.md) — real-EKS interruption survival
 - [`docs/objective2_result.md`](docs/objective2_result.md) — benchmark harness + full sweep
 - [`docs/objective3_result.md`](docs/objective3_result.md) — prediction model, 4 rounds
+- [`docs/wide_model_result.md`](docs/wide_model_result.md) — retrained model, feature ablations, real-reclaim check (v2)
 - [`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md) — trace-driven benchmark with the real model in the loop (v2)
 - [`Paper/fix_everything_plan.md`](Paper/fix_everything_plan.md) — the v2 fix list
 - [`docs/A6_observability.md`](docs/A6_observability.md) — Prometheus + Grafana
