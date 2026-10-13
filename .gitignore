@@ -1,10 +1,9 @@
-﻿# Terraform
+# Terraform
 **/.terraform/
 *.tfstate
 *.tfstate.backup
 *.tfvars
 !terraform/terraform.tfvars.example
-.terraform.lock.hcl
 terraform/*.zip
 
 # Python
@@ -16,7 +15,7 @@ build/
 .venv/
 venv/
 
-# AWS credentials ??? never commit these
+# AWS credentials, never commit these
 .aws/
 credentials
 
@@ -53,14 +52,16 @@ terraform.exe
 .terraform.tfstate.lock.info
 .terraform/
 
-# Benchmark (Track 2) — cached dataset + raw per-run trial data are large/transient;
+# Benchmark (Track 2): cached dataset + raw per-run trial data are large/transient;
 # summary_*.csv and figures/ (the actual deliverable) stay tracked.
 benchmark/data/
 benchmark/results/raw/
 benchmark/results/raw_stress/
 
-# Local-only draft materials (slides, demo script) — not for GitHub
+# Local-only draft materials (slides, demo script), not for GitHub
 presentation_files/
 
 #paper
 /paper
+ml/model/mlruns.db
+benchmark/results/trace_full_run.log
