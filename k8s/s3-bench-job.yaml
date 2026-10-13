@@ -1,0 +1,45 @@
+# One-off in-region S3 throughput probe: how long does a checkpoint of a given size take to reach S3 from a
+# real EKS node? Replaces assumed upload rates in docs/wide_model_result.md. Uses the operator's IRSA role
+# (checkpoints bucket only) and writes under tmp-bench/. The role cannot delete, so clean up afterwards.
+#   kubectl apply -f k8s/s3-bench-job.yaml && kubectl logs -f job/s3-bench
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: s3-bench
+  namespace: default
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      serviceAccountName: argus-operator
+      restartPolicy: Never
+      containers:
+        - name: bench
+          image: public.ecr.aws/aws-cli/aws-cli:latest
+          resources:
+            requests: {cpu: "1", memory: 512Mi}
+            limits: {memory: 2Gi}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -u
+              # The pod role cannot delete objects, so the same keys are overwritten and the (versioned) test
+              # data is removed afterwards with admin credentials: aws s3api list-object-versions --prefix tmp-bench/
+              B=s3://argus-checkpoints-844641713781/tmp-bench
+              echo "concurrency,size_mb,upload_ms,download_ms"
+              for conc in 10 32; do
+                aws configure set default.s3.max_concurrent_requests $conc
+                aws configure set default.s3.multipart_chunksize 64MB
+                for s in 16 128 512 1024 2048; do
+                  dd if=/dev/zero of=/tmp/blob bs=1M count=$s 2>/dev/null
+                  t0=$(date +%s%N)
+                  aws s3 cp /tmp/blob $B/blob_$s --only-show-errors || echo "upload failed $s"
+                  t1=$(date +%s%N)
+                  aws s3 cp $B/blob_$s /tmp/blob_back --only-show-errors || echo "download failed $s"
+                  t2=$(date +%s%N)
+                  echo "$conc,$s,$(( (t1 - t0) / 1000000 )),$(( (t2 - t1) / 1000000 ))"
+                  rm -f /tmp/blob /tmp/blob_back
+                done
+              done
+              echo DONE

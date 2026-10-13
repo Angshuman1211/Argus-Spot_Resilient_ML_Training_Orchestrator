@@ -1,0 +1,16 @@
+instance_id,instance_type,availability_zone,launched_at_utc,status
+i-040109c7504b141da,c5.large,eu-north-1a,2026-10-13T08:38:17Z,launched
+i-0dadc78109756f916,m5.large,eu-north-1a,2026-10-13T08:38:21Z,launched
+i-0cbd295d3a9520d0a,t3.medium,eu-north-1a,2026-10-13T08:38:24Z,launched
+i-09b2847e84f279ffe,c6i.large,eu-north-1a,2026-10-13T08:38:28Z,launched
+,m6i.large,eu-north-1a,2026-10-13T08:38:31Z,failed:InsufficientInstanceCapacity
+i-087439767c1a2d7ee,c5.large,eu-north-1b,2026-10-13T08:38:40Z,launched
+i-0de6db8825d4c1970,m5.large,eu-north-1b,2026-10-13T08:38:43Z,launched
+i-0b966c20f0a090b28,t3.medium,eu-north-1b,2026-10-13T08:38:46Z,launched
+i-0cabd4fce9e9f423d,c6i.large,eu-north-1b,2026-10-13T08:38:49Z,launched
+,m6i.large,eu-north-1b,2026-10-13T08:38:52Z,failed:InsufficientInstanceCapacity
+i-08162b0007f532f89,c5.large,eu-north-1c,2026-10-13T08:39:02Z,launched
+i-09a6394ea1d57d3ec,m5.large,eu-north-1c,2026-10-13T08:39:04Z,launched
+i-052821bf5b4191609,t3.medium,eu-north-1c,2026-10-13T08:39:07Z,launched
+i-0ab4d63a7ea0875de,c6i.large,eu-north-1c,2026-10-13T08:39:10Z,launched
+i-099ef8c8ece417a80,m6i.large,eu-north-1c,2026-10-13T08:39:13Z,launched

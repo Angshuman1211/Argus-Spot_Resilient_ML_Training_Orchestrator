@@ -11,6 +11,7 @@ history for the model's longest feature (72 hours) plus its 2-hour window.
   s3   the Lambda price collector's snapshots (raw/YYYY/MM/DD/HH/*.csv). Each snapshot lists the
        latest update per series, so deduplicating (timestamp, type, AZ) across snapshots
        reconstructs every update. Needs s3:GetObject and s3:ListBucket on the feature store.
+  s3object  one CSV object kept fresh by scripts/price_feeder.py (needs only s3:GetObject on it).
   csv  a static file, for local runs and tests.
 """
 import io
@@ -86,6 +87,25 @@ class S3PriceSource:
         return df[df["instance_type"].isin(set(instance_types))]
 
 
+class S3ObjectPriceSource:
+    """A single CSV object that something else keeps fresh (see scripts/price_feeder.py).
+
+    For clusters whose pod role can read one bucket but not call the EC2 API or read the Lambda
+    collector's bucket, and where adding IAM permissions is not an option."""
+    name = "s3object"
+
+    def __init__(self, uri, client=None):
+        import boto3
+        assert uri.startswith("s3://"), uri
+        self.bucket, self.key = uri[5:].split("/", 1)
+        self.s3 = client or boto3.client("s3")
+
+    def fetch(self, instance_types):
+        body = self.s3.get_object(Bucket=self.bucket, Key=self.key)["Body"].read()
+        df = _normalize(pd.read_csv(io.BytesIO(body)))
+        return df[df["instance_type"].isin(set(instance_types))]
+
+
 class CsvPriceSource:
     name = "csv"
 
@@ -121,6 +141,8 @@ def from_env(region):
         return Ec2PriceSource(region)
     if kind == "s3":
         return S3PriceSource(os.environ["FEATURE_STORE_BUCKET"])
+    if kind == "s3object":
+        return S3ObjectPriceSource(os.environ["PRICE_S3_URI"])
     if kind == "csv":
         return CsvPriceSource(os.environ["PRICE_CSV"])
     raise ValueError(f"unknown PRICE_SOURCE {kind!r}")

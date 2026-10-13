@@ -132,3 +132,22 @@ def test_api_reports_why_it_is_not_ready(monkeypatch, tmp_path):
     with TestClient(api.app) as c:
         r = c.get("/health")
         assert r.status_code == 503 and "meta.json" in r.json()["detail"]
+
+
+def test_s3object_source_reads_one_csv_and_filters_types():
+    import io as _io
+    import price_source
+
+    df = pd.concat([make_prices(itype="m5.xlarge"), make_prices(itype="t3.nano")])
+    buf = _io.StringIO()
+    df.to_csv(buf, index=False)
+
+    class FakeS3:
+        def get_object(self, Bucket, Key):
+            assert (Bucket, Key) == ("bkt", "prices/latest.csv")
+            return {"Body": _io.BytesIO(buf.getvalue().encode())}
+
+    src = price_source.S3ObjectPriceSource("s3://bkt/prices/latest.csv", client=FakeS3())
+    out = src.fetch(["m5.xlarge"])
+    assert set(out["instance_type"]) == {"m5.xlarge"} and len(out) > 100
+    assert price_source.from_env  # factory exists

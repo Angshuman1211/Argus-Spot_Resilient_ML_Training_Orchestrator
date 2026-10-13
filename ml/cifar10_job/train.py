@@ -68,15 +68,18 @@ def save_checkpoint(model, optimizer, epoch, completed):
         LOCAL_CHECKPOINT_PATH,
     )
     tmp_key = S3_PREFIX + ".tmp"
+    size_mb = os.path.getsize(LOCAL_CHECKPOINT_PATH) / 1e6
     for attempt in range(1, UPLOAD_RETRIES + 1):
         try:
+            t0 = time.time()
             s3_client.upload_file(LOCAL_CHECKPOINT_PATH, S3_BUCKET, tmp_key)
             s3_client.copy_object(
                 Bucket=S3_BUCKET,
                 Key=S3_PREFIX,
                 CopySource={"Bucket": S3_BUCKET, "Key": tmp_key},
             )
-            print("Checkpoint uploaded.")
+            print(f"Checkpoint uploaded: {size_mb:.1f} MB in {time.time() - t0:.1f} s "
+                  f"({size_mb / max(time.time() - t0, 1e-6):.1f} MB/s)", flush=True)
             return True
         except Exception as e:
             print(f"Checkpoint upload failed (attempt {attempt}/{UPLOAD_RETRIES}): {e}")
@@ -100,7 +103,14 @@ def load_checkpoint(model, optimizer):
     return start
 
 
+# EXTRA_PARAMS_MB pads the model with a large block of parameters so the checkpoint reaches a chosen size
+# (weights plus SGD momentum, so the file is about twice this). Used to measure real flush times for large
+# models on the real cluster; 0 (default) leaves the small CIFAR-10 CNN unchanged.
+EXTRA_PARAMS_MB = int(os.environ.get("EXTRA_PARAMS_MB", "0"))
+
 model = SimpleCNN()
+if EXTRA_PARAMS_MB > 0:
+    model.extra = nn.Parameter(torch.zeros(EXTRA_PARAMS_MB * 262144))  # 4 bytes per float32
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 current_epoch = 0
@@ -161,6 +171,8 @@ def main():
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
+            if EXTRA_PARAMS_MB > 0:
+                loss = loss + 1e-12 * model.extra[:1024].sum()  # keeps the block in the graph and optimizer state
             loss.backward()
             optimizer.step()
 
