@@ -67,7 +67,9 @@ def reschedule_pod(
         v1.delete_namespaced_pod(
             name=pod_name,
             namespace=namespace,
-            body=client.V1DeleteOptions(grace_period_seconds=0),
+            # No grace override: use the pod's terminationGracePeriodSeconds so the
+            # SIGTERM handler can flush a checkpoint if the S3 trigger was not consumed.
+            body=client.V1DeleteOptions(),
         )
         logger.info(f"[SCHEDULER] Pod '{pod_name}' deleted — Kubernetes will reschedule it")
     except client.exceptions.ApiException as e:

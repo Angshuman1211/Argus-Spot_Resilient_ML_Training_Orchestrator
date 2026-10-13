@@ -81,9 +81,15 @@ def _load_model():
         if os.path.exists(calibrator_path):
             calibrator = joblib.load(calibrator_path)
             print("Calibrator loaded — risk_score will be Platt-scaled.")
-        else:
+        elif os.getenv("ALLOW_UNCALIBRATED") == "1":
             calibrator = None
-            print("No calibrator found — risk_score will be the raw (uncalibrated) sigmoid output.")
+            print("No calibrator found - risk_score will be the raw (uncalibrated) sigmoid output.")
+        else:
+            # Operator thresholds are set on the calibrated scale (~0.0015). Serving raw
+            # scores would trip them on nearly every poll, so refuse to start instead.
+            raise FileNotFoundError(
+                f"{calibrator_path} missing. Set ALLOW_UNCALIBRATED=1 to serve raw scores (tests only)."
+            )
 
         is_ready = True
         print("Model, scaler, and metadata loaded successfully.")
@@ -179,5 +185,6 @@ def _predict(instance_type: str, az: str):
         "instance_type": instance_type,
         "az": az,
         "risk_score": round(risk_score, 4),
+        "calibrated": calibrator is not None,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }

@@ -12,19 +12,28 @@ Checkpoint trigger mechanism (Person B's design):
 
 import logging
 import os
+import time
 
 import boto3
 import httpx
 import kopf
+from botocore.exceptions import ClientError
 
 from controller import scheduler, sqs_publisher
-from controller.metrics import checkpoint_count, risk_score_gauge, job_completion_count
+from controller.metrics import (
+    checkpoint_count,
+    checkpoint_wait_timeouts,
+    risk_score_gauge,
+    job_completion_count,
+)
 
 logger = logging.getLogger(__name__)
 
 PREDICT_SERVICE_URL = os.environ.get("PREDICT_SERVICE_URL", "http://localhost:8000")
 RISK_THRESHOLD_DEFAULT = float(os.environ.get("RISK_THRESHOLD", "0.0015"))
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
+CHECKPOINT_WAIT_SECONDS = float(os.environ.get("CHECKPOINT_WAIT_SECONDS", "60"))
+CHECKPOINT_WAIT_POLL_SECONDS = float(os.environ.get("CHECKPOINT_WAIT_POLL_SECONDS", "2"))
 
 # When AWS_ENDPOINT_URL is set (local dev via .env.local), boto3 hits LocalStack.
 # On EKS (Week 6) the var is unset and boto3 hits real AWS via IRSA credentials.
@@ -59,6 +68,31 @@ def trigger_s3_checkpoint(job_name: str, checkpoint_path: str) -> None:
     except Exception as e:
         logger.error(f"[CHECKPOINT] Failed to write trigger for '{job_name}': {e}")
         raise
+
+
+def wait_for_checkpoint_flush(checkpoint_path: str, timeout: float = CHECKPOINT_WAIT_SECONDS) -> bool:
+    """
+    Blocks until the training pod has consumed the _FLUSH_TRIGGER marker.
+
+    The pod deletes the marker only after save_checkpoint() finishes, so a missing
+    marker means the checkpoint is on S3. Returns False on timeout, in which case
+    the caller must not assume a checkpoint exists.
+    """
+    path_clean = checkpoint_path.replace("s3://", "")
+    bucket, prefix = path_clean.split("/", 1)
+    trigger_key = f"{prefix}/_FLUSH_TRIGGER"
+
+    s3 = _boto3_client("s3")
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            s3.head_object(Bucket=bucket, Key=trigger_key)
+        except ClientError as e:
+            if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+                return True
+            logger.warning(f"[CHECKPOINT] head_object failed while waiting: {e}")
+        time.sleep(CHECKPOINT_WAIT_POLL_SECONDS)
+    return False
 
 
 @kopf.on.create("argus.io", "v1", "spotresilientjobs")
@@ -149,6 +183,17 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
         logger.error(f"[RECONCILE] '{name}' checkpoint trigger failed: {e}")
         patch.status["phase"] = "Failed"
         return
+
+    # Do not kill the pod until it has actually flushed. The trigger is only polled
+    # every 100 batches, so deleting immediately races the flush and loses work.
+    if wait_for_checkpoint_flush(checkpoint_path):
+        logger.info(f"[RECONCILE] '{name}' checkpoint confirmed on S3")
+    else:
+        checkpoint_wait_timeouts.labels(job_name=name).inc()
+        logger.warning(
+            f"[RECONCILE] '{name}' checkpoint not confirmed after {CHECKPOINT_WAIT_SECONDS}s "
+            f"- migrating anyway, relying on the pod's SIGTERM handler"
+        )
 
     # 3. Publish SQS risk event
     try:

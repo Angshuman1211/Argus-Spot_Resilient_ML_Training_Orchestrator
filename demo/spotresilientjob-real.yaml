@@ -1,0 +1,17 @@
+apiVersion: argus.io/v1
+kind: SpotResilientJob
+metadata:
+  name: cifar10-test
+  namespace: default
+spec:
+  image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
+  command: ["python", "train.py"]
+  checkpointPath: s3://argus-checkpoints-844641713781/checkpoints/cifar10-test
+  checkpointIntervalSteps: 500
+  # Real-model variant. The calibrated model's scores top out near 0.0018, so the
+  # threshold sits at its best-F1 point (see docs/week7_model_evaluation.md).
+  # Use spotresilientjob.yaml (0.65) only with the mock predictor.
+  riskThreshold: 0.0015
+  instanceFallback:
+    - m5.xlarge   # model has real features for this type + AZ (m5.large has none → 404)
+    - c5.xlarge
