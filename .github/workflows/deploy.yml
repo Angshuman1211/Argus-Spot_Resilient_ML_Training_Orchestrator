@@ -16,6 +16,11 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # OIDC: GitHub proves who it is and AWS hands back short-lived credentials. The role (created by
+    # scripts/setup_github_oidc.sh) can be assumed only by workflows on this repo's master branch.
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout
@@ -24,8 +29,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::844641713781:role/argus-github-actions
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
