@@ -1,0 +1,12 @@
+{
+  "clock_only_all": {
+    "positives": 2893,
+    "base_rate": 0.0014721088047677396,
+    "auprc": 0.005888782815257504,
+    "lift": 4.00023612126048,
+    "auroc": 0.8755602438956028
+  },
+  "phase_windows": 491273,
+  "phase_positives": 2893,
+  "windows_outside_phase_positives": 0
+}
