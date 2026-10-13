@@ -54,6 +54,7 @@ def env():
         mgr.list_job_pods.return_value = [_pod("Running", "node-a")]
         mgr.get_pod_node.return_value = "node-a"
         mgr.wait.return_value = True
+        mgr.trigger.return_value = 'trigger-id-1'
         mgr.http_get.return_value = _risk(0.5)
         yield mgr
 
@@ -153,21 +154,35 @@ def test_succeeded_pod_marks_job_succeeded(env):
 
 
 def _client_error(code):
-    return ClientError({"Error": {"Code": code, "Message": "x"}}, "HeadObject")
+    return ClientError({"Error": {"Code": code, "Message": "x"}}, "GetObject")
 
 
-def test_wait_returns_true_once_trigger_is_consumed():
+def _body(text):
+    return {"Body": mock.Mock(read=lambda: text.encode())}
+
+
+def test_trigger_writes_a_fresh_id_to_the_trigger_key():
     s3 = mock.Mock()
-    s3.head_object.side_effect = [{}, {}, _client_error("404")]
+    with mock.patch.object(handlers, "_boto3_client", return_value=s3):
+        a = handlers.trigger_s3_checkpoint("job", CKPT)
+        b = handlers.trigger_s3_checkpoint("job", CKPT)
+    assert a != b and len(a) >= 16
+    kwargs = s3.put_object.call_args_list[0].kwargs
+    assert kwargs["Key"] == "checkpoints/job/_FLUSH_TRIGGER" and kwargs["Body"] == a.encode()
+
+
+def test_wait_returns_true_once_the_ack_carries_our_id():
+    s3 = mock.Mock()
+    s3.get_object.side_effect = [_client_error("NoSuchKey"), _body("someone-elses-id"), _body("mine")]
     with mock.patch.object(handlers, "_boto3_client", return_value=s3), \
          mock.patch.object(handlers, "CHECKPOINT_WAIT_POLL_SECONDS", 0.001):
-        assert handlers.wait_for_checkpoint_flush(CKPT, timeout=5) is True
-    assert s3.head_object.call_args.kwargs["Key"] == "checkpoints/job/_FLUSH_TRIGGER"
+        assert handlers.wait_for_checkpoint_flush(CKPT, "mine", timeout=5) is True
+    assert s3.get_object.call_args.kwargs["Key"] == "checkpoints/job/_FLUSH_ACK"
 
 
-def test_wait_returns_false_on_timeout():
+def test_wait_returns_false_on_timeout_and_never_accepts_a_stale_ack():
     s3 = mock.Mock()
-    s3.head_object.return_value = {}
+    s3.get_object.return_value = _body("an-older-request")
     with mock.patch.object(handlers, "_boto3_client", return_value=s3), \
          mock.patch.object(handlers, "CHECKPOINT_WAIT_POLL_SECONDS", 0.001):
-        assert handlers.wait_for_checkpoint_flush(CKPT, timeout=0.05) is False
+        assert handlers.wait_for_checkpoint_flush(CKPT, "mine", timeout=0.05) is False

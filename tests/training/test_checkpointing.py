@@ -34,10 +34,14 @@ class FakeS3:
         with open(path, "wb") as f:
             f.write(self.objects[(bucket, key)])
 
-    def head_object(self, Bucket, Key):
+    def get_object(self, Bucket, Key):
+        import io
         if (Bucket, Key) not in self.objects:
             raise KeyError(Key)
-        return {}
+        return {"Body": io.BytesIO(self.objects[(Bucket, Key)])}
+
+    def put_object(self, Bucket, Key, Body):
+        self.objects[(Bucket, Key)] = Body
 
     def delete_object(self, Bucket, Key):
         self.objects.pop((Bucket, Key), None)
@@ -119,19 +123,56 @@ def test_failed_upload_never_leaves_a_truncated_final_key(job):
     assert job.fake_s3.objects[(job.S3_BUCKET, job.S3_PREFIX)] == good
 
 
-def test_trigger_is_deleted_only_after_successful_flush(job):
-    model, opt = _fresh(job)
-    job.model, job.optimizer = model, opt
-    trigger = (job.S3_BUCKET, job.S3_PREFIX.rsplit("/", 1)[0] + "/_FLUSH_TRIGGER")
+def _keys(job):
+    prefix_dir = job.S3_PREFIX.rsplit("/", 1)[0]
+    return (job.S3_BUCKET, prefix_dir + "/_FLUSH_TRIGGER"), (job.S3_BUCKET, prefix_dir + "/_FLUSH_ACK")
 
-    job.fake_s3.objects[trigger] = b"1"
+
+def test_ack_is_written_only_after_the_checkpoint_is_on_s3(job):
+    model, opt = _fresh(job)
+    job.model, job.optimizer, job._last_trigger_id = model, opt, None
+    trigger, ack = _keys(job)
+    job.fake_s3.objects[trigger] = b"req-1"
+
     job.fake_s3.fail_uploads = 99
     job.check_flush_trigger(2)
-    assert trigger in job.fake_s3.objects  # operator must not see a false confirmation
+    assert ack not in job.fake_s3.objects  # a failed flush must not look confirmed
 
     job.fake_s3.fail_uploads = 0
     job.check_flush_trigger(2)
-    assert trigger not in job.fake_s3.objects
+    assert job.fake_s3.objects[ack] == b"req-1"
+    assert (job.S3_BUCKET, job.S3_PREFIX) in job.fake_s3.objects
+
+
+def test_the_same_request_is_not_flushed_twice_and_a_new_one_is(job):
+    model, opt = _fresh(job)
+    job.model, job.optimizer, job._last_trigger_id = model, opt, None
+    trigger, ack = _keys(job)
+    job.fake_s3.objects[trigger] = b"req-1"
+    job.check_flush_trigger(0)
+    first = job.fake_s3.objects[(job.S3_BUCKET, job.S3_PREFIX)]
+
+    job.fake_s3.objects[(job.S3_BUCKET, job.S3_PREFIX)] = b"sentinel"   # would be overwritten by a second flush
+    job.check_flush_trigger(1)
+    assert job.fake_s3.objects[(job.S3_BUCKET, job.S3_PREFIX)] == b"sentinel"
+
+    job.fake_s3.objects[trigger] = b"req-2"
+    job.check_flush_trigger(1)
+    assert job.fake_s3.objects[ack] == b"req-2"
+    assert job.fake_s3.objects[(job.S3_BUCKET, job.S3_PREFIX)] != b"sentinel"
+    assert first != b"sentinel"
+
+
+def test_a_pod_started_after_the_ack_does_not_repeat_the_flush(job):
+    trigger, ack = _keys(job)
+    job.fake_s3.objects[trigger] = b"req-1"
+    job.fake_s3.objects[ack] = b"req-1"
+    assert job._read_marker(ack.__getitem__(1)) == "req-1"
+    job._last_trigger_id = job._read_marker(ack[1])  # what main() does at startup
+    model, opt = _fresh(job)
+    job.model, job.optimizer = model, opt
+    job.check_flush_trigger(0)
+    assert (job.S3_BUCKET, job.S3_PREFIX) not in job.fake_s3.objects  # nothing was saved
 
 
 def test_sigterm_handler_only_sets_flag(job):

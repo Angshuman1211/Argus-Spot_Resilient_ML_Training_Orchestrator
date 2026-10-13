@@ -13,6 +13,7 @@ Checkpoint trigger mechanism (Person B's design):
 import logging
 import os
 import time
+import uuid
 
 import boto3
 import httpx
@@ -51,50 +52,51 @@ def _boto3_client(service: str):
     return boto3.client(service, **kwargs)
 
 
-def trigger_s3_checkpoint(job_name: str, checkpoint_path: str) -> None:
-    """
-    Writes a _FLUSH_TRIGGER marker to S3 so the training pod saves a checkpoint.
-
-    Trigger key: {prefix}/_FLUSH_TRIGGER
-    where prefix is derived from checkpointPath: s3://{bucket}/{prefix}
-
-    The training pod (train.py) polls for this key every 100 batches,
-    flushes model.pt on detection, then deletes the marker.
-    """
+def _checkpoint_keys(checkpoint_path: str):
     path_clean = checkpoint_path.replace("s3://", "")
     bucket, prefix = path_clean.split("/", 1)
-    trigger_key = f"{prefix}/_FLUSH_TRIGGER"
+    return bucket, f"{prefix}/_FLUSH_TRIGGER", f"{prefix}/_FLUSH_ACK"
 
+
+def trigger_s3_checkpoint(job_name: str, checkpoint_path: str) -> str:
+    """
+    Asks the training pod to flush a checkpoint and returns the request's unique id.
+
+    Protocol (needs only PutObject and GetObject, because the pod role cannot delete objects):
+      1. operator writes {prefix}/_FLUSH_TRIGGER containing a fresh id
+      2. the pod notices an id it has not handled, saves model.pt, then writes the same id to
+         {prefix}/_FLUSH_ACK
+      3. the operator waits until _FLUSH_ACK holds its id (wait_for_checkpoint_flush)
+    """
+    bucket, trigger_key, _ = _checkpoint_keys(checkpoint_path)
+    trigger_id = uuid.uuid4().hex
     s3 = _boto3_client("s3")
     try:
-        s3.put_object(Bucket=bucket, Key=trigger_key, Body=b"1")
-        logger.info(f"[CHECKPOINT] Trigger written → s3://{bucket}/{trigger_key}")
+        s3.put_object(Bucket=bucket, Key=trigger_key, Body=trigger_id.encode())
+        logger.info(f"[CHECKPOINT] Trigger {trigger_id[:8]} written -> s3://{bucket}/{trigger_key}")
     except Exception as e:
         logger.error(f"[CHECKPOINT] Failed to write trigger for '{job_name}': {e}")
         raise
+    return trigger_id
 
 
-def wait_for_checkpoint_flush(checkpoint_path: str, timeout: float = CHECKPOINT_WAIT_SECONDS) -> bool:
+def wait_for_checkpoint_flush(checkpoint_path: str, trigger_id: str, timeout: float = CHECKPOINT_WAIT_SECONDS) -> bool:
     """
-    Blocks until the training pod has consumed the _FLUSH_TRIGGER marker.
-
-    The pod deletes the marker only after save_checkpoint() finishes, so a missing
-    marker means the checkpoint is on S3. Returns False on timeout, in which case
-    the caller must not assume a checkpoint exists.
+    Blocks until the training pod acknowledges this trigger by writing its id to _FLUSH_ACK, which it does
+    only after save_checkpoint() succeeded. Returns False on timeout; the caller must then not assume a
+    checkpoint exists.
     """
-    path_clean = checkpoint_path.replace("s3://", "")
-    bucket, prefix = path_clean.split("/", 1)
-    trigger_key = f"{prefix}/_FLUSH_TRIGGER"
-
+    bucket, _, ack_key = _checkpoint_keys(checkpoint_path)
     s3 = _boto3_client("s3")
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
-            s3.head_object(Bucket=bucket, Key=trigger_key)
-        except ClientError as e:
-            if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+            body = s3.get_object(Bucket=bucket, Key=ack_key)["Body"].read().decode().strip()
+            if body == trigger_id:
                 return True
-            logger.warning(f"[CHECKPOINT] head_object failed while waiting: {e}")
+        except ClientError as e:
+            if e.response["Error"]["Code"] not in ("404", "NoSuchKey", "NotFound"):
+                logger.warning(f"[CHECKPOINT] reading ack failed while waiting: {e}")
         time.sleep(CHECKPOINT_WAIT_POLL_SECONDS)
     return False
 
@@ -216,7 +218,7 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
     logger.warning(f"[RECONCILE] '{name}' risk {risk_score:.4f} > {risk_threshold} - triggering migration")
 
     try:
-        trigger_s3_checkpoint(name, checkpoint_path)
+        trigger_id = trigger_s3_checkpoint(name, checkpoint_path)
         patch.status["lastCheckpointStep"] = last_step + 1
         checkpoint_count.labels(job_name=name).inc()
     except Exception as e:
@@ -226,7 +228,7 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
 
     # Do not kill the pod until it has actually flushed. The trigger is only polled
     # every 100 batches, so deleting immediately races the flush and loses work.
-    if wait_for_checkpoint_flush(checkpoint_path):
+    if wait_for_checkpoint_flush(checkpoint_path, trigger_id):
         logger.info(f"[RECONCILE] '{name}' checkpoint confirmed on S3")
     else:
         checkpoint_wait_timeouts.labels(job_name=name).inc()

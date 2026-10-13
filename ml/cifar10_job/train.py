@@ -130,24 +130,33 @@ def handle_sigterm(*args):
 signal.signal(signal.SIGTERM, handle_sigterm)
 
 
+_last_trigger_id = None  # id of the last flush request this process handled (or found already acknowledged)
+
+
+def _read_marker(key):
+    try:
+        return s3_client.get_object(Bucket=S3_BUCKET, Key=key)["Body"].read().decode().strip() or None
+    except Exception:
+        return None
+
+
 def check_flush_trigger(epoch):
     """
-    Checks if the operator dropped a _FLUSH_TRIGGER marker in S3.
-    Trigger key mirrors the operator's trigger_s3_checkpoint() path:
-        {prefix_dir}/_FLUSH_TRIGGER
+    Handles a flush request from the operator (see operator/controller/handlers.py for the protocol).
 
-    The marker is deleted only after a successful upload: the operator waits for the
-    marker to disappear as its confirmation that the checkpoint is on S3.
+    The operator writes {prefix_dir}/_FLUSH_TRIGGER with a unique id. If it is an id this pod has not handled,
+    save a checkpoint and, only if the upload succeeded, write the same id to {prefix_dir}/_FLUSH_ACK, which is
+    what the operator waits for. Nothing is deleted: this pod's role has no s3:DeleteObject.
     """
+    global _last_trigger_id
     prefix_dir = S3_PREFIX.rsplit("/", 1)[0]
-    trigger_key = f"{prefix_dir}/_FLUSH_TRIGGER"
-    try:
-        s3_client.head_object(Bucket=S3_BUCKET, Key=trigger_key)
-    except Exception:
+    trigger_id = _read_marker(f"{prefix_dir}/_FLUSH_TRIGGER")
+    if not trigger_id or trigger_id == _last_trigger_id:
         return
-    print("Operator flush trigger detected - saving checkpoint early")
+    print(f"Operator flush request {trigger_id[:8]} detected - saving checkpoint early", flush=True)
     if save_checkpoint(model, optimizer, epoch, completed=False):
-        s3_client.delete_object(Bucket=S3_BUCKET, Key=trigger_key)
+        s3_client.put_object(Bucket=S3_BUCKET, Key=f"{prefix_dir}/_FLUSH_ACK", Body=trigger_id.encode())
+        _last_trigger_id = trigger_id
 
 
 def main():
@@ -161,6 +170,10 @@ def main():
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True, num_workers=2)
 
     start_epoch = load_checkpoint(model, optimizer)
+    # a request that was already acknowledged before this pod started (for example before a migration)
+    # must not trigger another flush
+    global _last_trigger_id
+    _last_trigger_id = _read_marker(f"{S3_PREFIX.rsplit('/', 1)[0]}/_FLUSH_ACK")
     epochs = int(os.environ.get("EPOCHS", "5"))
 
     for epoch in range(start_epoch, epochs):

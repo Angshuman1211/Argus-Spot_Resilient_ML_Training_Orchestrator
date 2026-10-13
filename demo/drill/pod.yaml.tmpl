@@ -1,0 +1,40 @@
+# Training pod for one drill job. The operator addresses the pod by the CR name.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ${NAME}
+  namespace: default
+  labels:
+    argus.io/job: ${NAME}
+spec:
+  serviceAccountName: argus-operator
+  nodeSelector:
+    workload: ml-training
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 90
+  volumes:
+    - name: dataset
+      emptyDir: {}
+  initContainers:
+    - name: fetch-dataset
+      image: public.ecr.aws/aws-cli/aws-cli:latest
+      command: ["sh", "-c", "aws s3 cp s3://argus-checkpoints-844641713781/datasets/cifar-10-python.tar.gz /app/data/cifar-10-python.tar.gz"]
+      volumeMounts:
+        - name: dataset
+          mountPath: /app/data
+  containers:
+    - name: train
+      image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:v2
+      imagePullPolicy: Always
+      volumeMounts:
+        - name: dataset
+          mountPath: /app/data
+      env:
+        - {name: S3_BUCKET, value: argus-checkpoints-844641713781}
+        - {name: S3_PREFIX, value: "checkpoints/${NAME}/latest_checkpoint.pt"}
+        - {name: EPOCHS, value: "${EPOCHS}"}
+        - {name: EXTRA_PARAMS_MB, value: "${EXTRA_MB}"}
+        - {name: PYTHONUNBUFFERED, value: "1"}
+      resources:
+        requests: {cpu: "500m", memory: 2Gi}
+        limits: {memory: 6Gi}
