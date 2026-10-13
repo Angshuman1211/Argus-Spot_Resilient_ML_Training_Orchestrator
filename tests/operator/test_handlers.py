@@ -82,6 +82,24 @@ def test_checkpoint_confirmed_before_pod_deleted(env):
     assert patch.status["cordonedNode"] == "node-a"
 
 
+def test_no_second_migration_during_the_cooldown(env):
+    # found on the real cluster: the pool's risk stays high after a migration, so without a cooldown the
+    # operator deleted the replacement pod on every poll and it never came up
+    patch = _patch()
+    status = {"lastMigrationAt": __import__("time").time() - 60}
+    handlers.reconcile(spec=_spec(), name="job", namespace="default", status=status, patch=patch)
+    assert _call_names(env) == []
+    assert "phase" not in patch.status
+
+
+def test_migrates_again_once_the_cooldown_has_passed(env):
+    patch = _patch()
+    status = {"lastMigrationAt": __import__("time").time() - handlers.MIGRATION_COOLDOWN_SECONDS - 5}
+    handlers.reconcile(spec=_spec(), name="job", namespace="default", status=status, patch=patch)
+    assert "reschedule_pod" in _call_names(env)
+    assert patch.status["lastMigrationAt"] > status["lastMigrationAt"]
+
+
 def test_unconfirmed_flush_is_counted_and_still_migrates(env):
     env.wait.return_value = False
     patch = _patch()

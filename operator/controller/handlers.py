@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 PREDICT_SERVICE_URL = os.environ.get("PREDICT_SERVICE_URL", "http://localhost:8000")
 RISK_THRESHOLD_DEFAULT = float(os.environ.get("RISK_THRESHOLD", "0.05"))
 POLL_INTERVAL = int(os.environ.get("POLL_INTERVAL_SECONDS", "60"))
+# After a migration the pool's risk is usually still high (the score describes the instance pool, not the pod),
+# so without a cooldown the operator would migrate again on the very next poll. 900 s is the prediction horizon.
+MIGRATION_COOLDOWN_SECONDS = int(os.environ.get("MIGRATION_COOLDOWN_SECONDS", "900"))
 MAX_FAILURE_RETRIES = int(os.environ.get("MAX_FAILURE_RETRIES", "3"))
 UNCORDON_AFTER_SECONDS = int(os.environ.get("UNCORDON_AFTER_SECONDS", "600"))
 DEFAULT_AZ = os.environ.get("DEFAULT_AZ", "eu-north-1a")
@@ -214,6 +217,11 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
     if risk_score <= risk_threshold:
         return
 
+    since = time.time() - float(status.get("lastMigrationAt", 0))
+    if since < MIGRATION_COOLDOWN_SECONDS:
+        logger.info(f"[RECONCILE] '{name}' risk above threshold but migrated {since:.0f}s ago - cooling down")
+        return
+
     # 2. Risk exceeded: checkpoint, confirm the flush, then migrate
     logger.warning(f"[RECONCILE] '{name}' risk {risk_score:.4f} > {risk_threshold} - triggering migration")
 
@@ -264,4 +272,5 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
 
     patch.status["phase"] = "Running"
     patch.status["retryCount"] = 0
+    patch.status["lastMigrationAt"] = time.time()
     logger.info(f"[RECONCILE] '{name}' migration complete - back to Running")

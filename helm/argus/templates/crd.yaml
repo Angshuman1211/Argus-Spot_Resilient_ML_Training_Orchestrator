@@ -57,6 +57,9 @@ spec:
                 lastCheckpointStep:
                   type: integer
                   description: Number of checkpoint triggers issued by the operator
+                lastMigrationAt:
+                  type: number
+                  description: Unix time of the last completed migration, used for the cooldown
                 retryCount:
                   type: integer
                   description: Consecutive Failed to Running retries
