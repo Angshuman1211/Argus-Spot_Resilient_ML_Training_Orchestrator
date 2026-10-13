@@ -1,0 +1,20 @@
+kind,size_mb,seconds,mb_per_s,model,upload_mb_s
+measured_local_disk,4.0,0.018,233.9,,
+measured_local_disk,64.0,0.165,407.4,,
+measured_local_disk,256.0,0.53,506.9,,
+measured_local_disk,1024.0,2.109,509.1,,
+estimated_upload,3.6,0.0,,CIFAR CNN (this repo),100.0
+estimated_upload,3.6,0.0,,CIFAR CNN (this repo),500.0
+estimated_upload,3.6,0.0,,CIFAR CNN (this repo),1000.0
+estimated_upload,307.2,3.1,,ResNet-50,100.0
+estimated_upload,307.2,0.6,,ResNet-50,500.0
+estimated_upload,307.2,0.3,,ResNet-50,1000.0
+estimated_upload,4080.0,40.8,,BERT-large,100.0
+estimated_upload,4080.0,8.2,,BERT-large,500.0
+estimated_upload,4080.0,4.1,,BERT-large,1000.0
+estimated_upload,15600.0,156.0,,1.3B LLM,100.0
+estimated_upload,15600.0,31.2,,1.3B LLM,500.0
+estimated_upload,15600.0,15.6,,1.3B LLM,1000.0
+estimated_upload,84000.0,840.0,,7B LLM,100.0
+estimated_upload,84000.0,168.0,,7B LLM,500.0
+estimated_upload,84000.0,84.0,,7B LLM,1000.0
