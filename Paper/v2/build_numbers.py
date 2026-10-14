@@ -146,6 +146,24 @@ put("awsRateMax", (big.size_mb / (big.upload_ms / 1000)).max(), "{:.0f}")
 big2 = eks[(eks.size_mb == 2048) & (eks.concurrency == 10)].iloc[0]
 put("awsTwoGbSeconds", big2.upload_ms / 1000, "{:.0f}")
 
+# ------------------------------------------- idealized predictor on top of Young-Daly (15 nodes, C = 300 s)
+sy = pd.read_csv(os.path.join(R, "trace_oct_new", "summary_synth.csv"))
+sy = sy[(sy.N == 15) & (sy.C_s == 300)].set_index("policy").slowdown
+put("synthBest", sy["synthetic_yd_r0.95_p0.9"], "{:.2f}")      # 95% recall, 90% precision
+put("synthSixty", sy["synthetic_yd_r0.95_p0.6"], "{:.2f}")     # 95% recall, 60% precision
+put("synthLowP", sy["synthetic_yd_r0.95_p0.05"], "{:.2f}")     # 95% recall, 5% precision
+put("synthLowPLowR", sy["synthetic_yd_r0.2_p0.05"], "{:.2f}")  # 20% recall, 5% precision
+_det = det[det.signal == "model"].set_index("budget")
+put("opRecallTen", _det.loc[0.1, "recall"] * 100, "{:.0f}")
+put("opPrecTen", _det.loc[0.1, "precision"] * 100, "{:.0f}")
+put("opRecallTwenty", _det.loc[0.2, "recall"] * 100, "{:.0f}")
+put("opPrecTwenty", _det.loc[0.2, "precision"] * 100, "{:.0f}")
+_t = te[(te.N == 15) & (te.C_s == 300)].set_index("policy").slowdown
+put("opSlowTen", _t["model_migrate_q0.1"], "{:.2f}")
+put("opSlowTwenty", _t["model_migrate_q0.2"], "{:.2f}")
+put("opSlowTiny", _t["model_migrate_q0.002"], "{:.2f}")
+put("ydSlowThreeHundred", _t["young_daly"], "{:.2f}")
+
 # ---------------------------------------------------------------------- real reclaims (if present)
 rr = os.path.join(W, "real_reclaim_eval.json")
 if os.path.exists(rr):

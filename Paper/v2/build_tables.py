@@ -114,6 +114,24 @@ for _, r in d.iterrows():
 rows += ["\\bottomrule", "\\end{tabular}"]
 write("table_regions.tex", rows)
 
+# ------------------------------------------- Table: the real model's operating points (recall vs false alarms)
+det = pd.read_csv(os.path.join(R, "trace_oct_new", "detection.csv"))
+det = det[det.signal == "model"].sort_values("budget")
+t15 = te[(te.N == 15) & (te.C_s == 300)].set_index("policy")
+rows = [r"\begin{tabular}{rrrrc}", r"\toprule",
+        r"Alarm budget & Recall & Precision & Alarms per node-day & Slowdown, 95\% interval \\", r"\midrule"]
+for r in det.itertuples():
+    k = f"model_migrate_q{r.budget:g}"
+    if k not in t15.index:
+        continue
+    x = t15.loc[k]
+    rows.append(f"{r.budget * 100:g}\\% & {r.recall * 100:.0f}\\% & {r.precision * 100:.0f}\\% & {r.alarms_per_node_day:.1f} & "
+                f"{x.slowdown:.2f} [{x.slowdown_lo:.2f}, {x.slowdown_hi:.2f}] \\\\")
+yd = t15.loc["young_daly"]
+rows += [r"\midrule", f"\\multicolumn{{4}}{{l}}{{Young-Daly, no predictor}} & {yd.slowdown:.2f} [{yd.slowdown_lo:.2f}, {yd.slowdown_hi:.2f}] \\\\",
+         r"\bottomrule", r"\end{tabular}"]
+write("table_operating.tex", rows)
+
 # ------------------------------------------------------------- Table 6: real reclaims (if evaluated)
 rr = os.path.join(W, "real_reclaim_eval.json")
 if os.path.exists(rr):

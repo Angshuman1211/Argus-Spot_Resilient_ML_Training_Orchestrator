@@ -102,6 +102,8 @@ We replay the last nine days of eu-north-1 prices for the five instance types an
 
 Figure~\ref{fig:main} and Table~\ref{tab:bench} show the result. Reacting to the notice is near optimal while a checkpoint fits inside two minutes (\ovReactiveTen\% extra time) and collapses to no protection beyond it. The model matches Young-Daly for fast checkpoints and pulls ahead as checkpoints grow. At 300 seconds model alarms add \ovModelThreeHundred\% against \ovYDThreeHundred\% for Young-Daly, a difference of \diffYDThreeHundred\ in slowdown (interval \diffYDLoThreeHundred\ to \diffYDHiThreeHundred, paired and resampled by day) that favours the model on \daysBetterThreeHundred\% of the \benchDays\ days. At 60 seconds the gain is \diffYDSixty\ and at 10 seconds the two tie. The old model, at the same budget, is much worse than periodic checkpointing (slowdown \slowOldModelThreeHundred\ at 300 seconds), which shows that the model's quality is what makes prediction useful. At the budget used it catches \recallNew\% of the events with \precNew\% precision, against \recallOld\% and \precOld\% for the old model.
 
+\paragraph{Recall against false alarms.} The alarm budget sets the trade-off, so sweeping it varies recall and false-alarm rate for the real model (Appendix~\ref{app:operating}). With too few alarms the model misses almost every event and the job is barely protected (slowdown \opSlowTiny\ at a 0.2\% budget). At a 10\% budget it catches \opRecallTen\% of events at \opPrecTen\% precision and reaches \opSlowTen, the best point. Doubling the budget raises recall to \opRecallTwenty\% but drops precision to \opPrecTwenty\%, and the extra checkpoints and restarts push slowdown back to \opSlowTwenty. We also added an idealized predictor with chosen recall and precision on top of the Young-Daly schedule (slowdown \ydSlowThreeHundred\ alone). At 95\% recall it improves on Young-Daly only when precision is high (\synthBest\ at 90\%, \synthSixty\ at 60\%), and at 5\% precision it is far worse (\synthLowP). With 300 second checkpoints and 15 nodes every false alarm is expensive, so precision matters as much as recall, and a predictor that keeps the periodic schedule underneath pays for both.
+
 \begin{table}[t]
   \centering
   \caption{Slowdown against ideal (1.0 is no loss) for a 15-node job, by checkpoint time. Bold marks the best non-oracle entry where the model wins.}
@@ -127,7 +129,16 @@ Two events cannot support a rate, so we produced more on purpose. A fleet of tin
   \input{tables/table_real}
 \end{table}
 
-The price-history model has no skill on real reclaims (AUROC \realAurocPrice, and \realYoungPrice\ in the first 30 minutes), and the price-spike proxy does not coincide with them. Capacity signals do. AWS's placement score reaches \realAurocPlace\ overall and \realYoungPlace\ among young instances, so it is not merely tracking age, and the reclaim rate a pool showed in other hours reaches \realAurocPrior. We cannot tell the last two apart yet, since pools differ in their placement scores. A logistic model on placement, age and price risk reaches \realAurocLearned, a little above the placement score alone but well inside the intervals, so we cannot claim it is better. On pools it never saw during fitting, placement and age together reach \realByPoolPlaceAge\ (interval \realByPoolPlaceAgeLo\ to \realByPoolPlaceAgeHi). The intervals are still wide because the record covers one region and one day.\ifdefinedealAurocReb{} AWS's own early warning, the Rebalance Recommendation, was recorded for the sensors launched after we began capturing it. It preceded ealRebWarned\ of ealRebCovered\ reclaims, a median of ealRebLead\ minutes ahead, and was also sent to ealRebFalse\ of the ealRebUnrec\ instances that were never reclaimed. Used as a predictor it reaches AUROC ealAurocReb\ (interval ealLoReb\ to ealHiReb).i This does not overturn Section~\ref{sec:pay}, which is correct about what it measures, but it limits it. The benefit shown there holds if reclaims follow price spikes, and in this region they mostly did not. A deployed system should combine or replace the price features with capacity signals such as the placement score.
+The price-history model has no skill on real reclaims (AUROC \realAurocPrice, and \realYoungPrice\ in the first 30 minutes), and the price-spike proxy does not coincide with them. Capacity signals do. AWS's placement score reaches \realAurocPlace\ overall and \realYoungPlace\ among young instances, so it is not merely tracking age, and the reclaim rate a pool showed in other hours reaches \realAurocPrior. We cannot tell the last two apart yet, since pools differ in their placement scores. A logistic model on placement, age and price risk reaches \realAurocLearned, a little above the placement score alone but well inside the intervals, so we cannot claim it is better. On pools it never saw during fitting, placement and age together reach \realByPoolPlaceAge\ (interval \realByPoolPlaceAgeLo\ to \realByPoolPlaceAgeHi). The intervals are still wide because the record covers one region and one day.\ifdefined
+ealAurocReb{} AWS's own early warning, the Rebalance Recommendation, was recorded for the sensors launched after we began capturing it. It preceded 
+ealRebWarned\ of 
+ealRebCovered\ reclaims, a median of 
+ealRebLead\ minutes ahead, and was also sent to 
+ealRebFalse\ of the 
+ealRebUnrec\ instances that were never reclaimed. Used as a predictor it reaches AUROC 
+ealAurocReb\ (interval 
+ealLoReb\ to 
+ealHiReb).i This does not overturn Section~\ref{sec:pay}, which is correct about what it measures, but it limits it. The benefit shown there holds if reclaims follow price spikes, and in this region they mostly did not. A deployed system should combine or replace the price features with capacity signals such as the placement score.
 
 \subsection{Running the full path on a real cluster}
 \label{sec:eks}
@@ -171,6 +182,16 @@ Reacting to the notice is enough while checkpoints fit inside it. Once they do n
   \caption{The model retrained from scratch at five cut-off dates and tested on each following nine-day block.}
   \small
   \input{tables/table_rolling}
+\end{table}
+
+\section{Operating points of the model}
+\label{app:operating}
+
+\begin{table}[h]
+  \centering
+  \caption{The model at each alarm budget on the October test slice: recall and precision against price-spike events, and slowdown for 15-node jobs with 300 second checkpoints. Intervals resample whole days.}
+  \small
+  \input{tables/table_operating}
 \end{table}
 
 \section{Other regions}
