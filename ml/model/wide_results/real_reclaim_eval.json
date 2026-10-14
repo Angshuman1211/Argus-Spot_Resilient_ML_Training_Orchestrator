@@ -1,90 +1,106 @@
 {
- "instances": 140,
- "reclaimed": 90,
- "steps": 1446,
- "positive_steps": 124,
- "base_rate": 0.08575380359612725,
- "median_minutes_alive_when_reclaimed": 10.572956583333333,
+ "instances": 315,
+ "reclaimed": 152,
+ "steps": 4487,
+ "positive_steps": 229,
+ "base_rate": 0.05103632716737241,
+ "median_minutes_alive_when_reclaimed": 14.895065816666666,
  "predictors": {
   "price model": {
-   "auroc": 0.5391726855692743,
+   "auroc": 0.5309573964035845,
    "ci": [
-    0.4639406385321961,
-    0.6209730220306345
+    0.46837391827236,
+    0.6015534178626912
    ],
-   "auprc": 0.09998338625848412
+   "auprc": 0.05773667424387134
   },
   "placement score": {
-   "auroc": 0.7891216044681391,
+   "auroc": 0.7376177401218588,
    "ci": [
-    0.7369759356587491,
-    0.8410304381364263
+    0.6937842299650007,
+    0.7961543768647202
    ],
-   "auprc": 0.2743408816507211
+   "auprc": 0.14965648552071256
   },
   "instance age (control)": {
-   "auroc": 0.7732907129959494,
+   "auroc": 0.7470746050075788,
    "ci": [
-    0.7082421108709227,
-    0.8387160156977412
+    0.673291282495563,
+    0.8017317884973
    ],
-   "auprc": 0.3270325669960862
+   "auprc": 0.19033830645660813
   },
   "pool prior": {
-   "auroc": 0.8965856961592895,
+   "auroc": 0.8508412625809931,
    "ci": [
-    0.8622240712632546,
-    0.9256017677676335
+    0.8111406516347341,
+    0.8919091180939812
    ],
-   "auprc": 0.4086485485582256
+   "auprc": 0.3223529311520568
   },
   "proxy spike (future)": {
-   "auroc": 0.5,
+   "auroc": 0.5006568678326541,
    "ci": [
-    0.5,
-    0.5
+    0.4971756939184701,
+    0.5058363939332109
    ],
-   "auprc": 0.08575380359612725
+   "auprc": 0.051125376268949696
   },
   "learned (cv by hour)": {
-   "auroc": 0.8050393500888551,
+   "auroc": 0.7720383881174655,
    "ci": [
-    0.7415786251616399,
-    0.8649863076558495
+    0.7091977098153748,
+    0.8303977053768062
    ],
-   "auprc": 0.3527673362821137
+   "auprc": 0.2639531589630734
+  },
+  "rebalance recommendation": {
+   "auroc": 0.6589548176374523,
+   "ci": [
+    0.35,
+    0.7583333333333333
+   ],
+   "auprc": 0.10247005292970562
   }
  },
+ "rebalance": {
+  "covered_instances": 13,
+  "covered_reclaims": 7,
+  "reclaims_warned": 7,
+  "median_lead_min": 5.816666666666666,
+  "false_warnings": 2,
+  "unreclaimed_covered": 6
+ },
  "within_first_30_minutes": {
-  "steps": 512,
-  "positives": 93,
+  "steps": 1418,
+  "positives": 150,
   "auroc": {
    "price model": {
-    "auroc": 0.5209664587984705,
+    "auroc": 0.5030941114616194,
     "ci": [
-     0.42804458421538294,
-     0.6258365555280685
+     0.40882358827760484,
+     0.6085157301194938
     ]
    },
    "placement score": {
-    "auroc": 0.7949986297615785,
+    "auroc": 0.8052977466351855,
     "ci": [
-     0.7351389262944854,
-     0.8553858071562163
+     0.7594297013313196,
+     0.8454168787555818
     ]
    },
    "instance age (control)": {
-    "auroc": 0.7491210511458414,
+    "auroc": 0.7314458464773922,
     "ci": [
-     0.6731079781900959,
-     0.8134509162039204
+     0.6926446709014669,
+     0.7790515861888704
     ]
    },
    "pool prior": {
-    "auroc": 0.8750994431185362,
+    "auroc": 0.8752181913774975,
     "ci": [
-     0.8328044393320929,
-     0.9127090916611226
+     0.8319055778703329,
+     0.9052610992137361
     ]
    },
    "proxy spike (future)": {
@@ -95,12 +111,91 @@
     ]
    },
    "learned (cv by hour)": {
-    "auroc": 0.8144423129624555,
+    "auroc": 0.8091440260263092,
     "ci": [
-     0.7471982248036412,
-     0.8707620683579986
+     0.7464575804261984,
+     0.8662344424016892
+    ]
+   },
+   "rebalance recommendation": {
+    "auroc": 0.8697478991596639,
+    "ci": [
+     0.8697478991596639,
+     0.8697478991596639
     ]
    }
   }
- }
+ },
+ "by_region": {
+  "ap-southeast-1": {
+   "instances": 42,
+   "reclaimed": 13,
+   "steps": 733,
+   "positive_steps": 21,
+   "auroc": {
+    "price model": 0.56437265917603,
+    "placement score": 0.7162921348314607,
+    "instance age (control)": 0.764780631353665,
+    "pool prior": 0.737426431246656,
+    "proxy spike (future)": 0.4964887640449438,
+    "learned (cv by hour)": 0.7516051364365972,
+    "rebalance recommendation": 0.532608695652174
+   }
+  },
+  "eu-north-1": {
+   "instances": 190,
+   "reclaimed": 112,
+   "steps": 2225,
+   "positive_steps": 156,
+   "auroc": {
+    "price model": 0.5439268319886976,
+    "placement score": 0.7909395758814511,
+    "instance age (control)": 0.7866025950849538,
+    "pool prior": 0.901812159968274,
+    "proxy spike (future)": 0.4987916868052199,
+    "learned (cv by hour)": 0.8217807869187532,
+    "rebalance recommendation": 0.6500000000000001
+   }
+  },
+  "us-east-1": {
+   "instances": 40,
+   "reclaimed": 11,
+   "steps": 763,
+   "positive_steps": 22,
+   "auroc": {
+    "price model": 0.4392712550607287,
+    "placement score": 0.580910317752423,
+    "instance age (control)": 0.6333578701999754,
+    "pool prior": 0.675622622991044,
+    "proxy spike (future)": 0.5227272727272727,
+    "learned (cv by hour)": 0.6178383020488284,
+    "rebalance recommendation": 0.9791666666666667
+   }
+  },
+  "us-east-2": {
+   "instances": 43,
+   "reclaimed": 16,
+   "steps": 766,
+   "positive_steps": 30,
+   "auroc": {
+    "price model": 0.4819067028985507,
+    "placement score": 0.5899003623188406,
+    "instance age (control)": 0.5914855072463767,
+    "pool prior": 0.721490036231884,
+    "proxy spike (future)": 0.49796195652173914,
+    "learned (cv by hour)": 0.6221467391304348,
+    "rebalance recommendation": 0.5804597701149425
+   }
+  }
+ },
+ "regions": [
+  "ap-southeast-1",
+  "eu-north-1",
+  "us-east-1",
+  "us-east-2"
+ ],
+ "days": [
+  "2026-10-13",
+  "2026-10-14"
+ ]
 }
