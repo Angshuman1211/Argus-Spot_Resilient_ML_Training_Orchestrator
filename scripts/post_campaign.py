@@ -69,6 +69,7 @@ def main():
     ap.add_argument("--tectonic", default=None)
     ap.add_argument("--cloudtrail-wait-min", type=int, default=20)
     ap.add_argument("--regions", default="eu-north-1", help="comma-separated campaign regions")
+    ap.add_argument("--s3-data", default=None, help="campaign ran on the cloud runner: sync its results from this S3 prefix")
     a = ap.parse_args()
     end = dt.datetime.fromisoformat(a.end_utc)
     regions = a.regions.split(",")
@@ -85,6 +86,8 @@ def main():
     time.sleep(a.cloudtrail_wait_min * 60)
 
     ok = []
+    if a.s3_data:  # the runner syncs every 2 minutes and makes a final sync 10 minutes after the end
+        ok.append(run_net("sync campaign data from S3", ["aws", "s3", "sync", a.s3_data, "ml/data/real/"], env=env))
     ok.append(run_net("pull reclaim labels", [py, "ml/data/pull_reclaim_labels.py"], env=env))
     ok.append(run_net("evaluate against real reclaims", [py, "ml/model/evaluate_real_reclaims.py"], env=env))
     ok.append(run("train real-label model", [py, "ml/model/train_real_label_model.py"], env=env))

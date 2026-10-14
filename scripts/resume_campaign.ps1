@@ -39,9 +39,10 @@ if ($now -lt $end.AddHours(1) -and -not (Running "keep_awake")) {
     $h = [math]::Ceiling(($end - $now).TotalHours + 1)
     Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile","-WindowStyle","Hidden","-File","$root\scripts\keep_awake.ps1","-Hours","$h"
 }
+$cloud = ($s.mode -eq "cloud")  # the campaigns run on the cloud runner; this laptop only does the finish
 foreach ($p in $s.regions.PSObject.Properties) {
     $region = $p.Name; $tag = $p.Value
-    if ($now -lt $end.AddMinutes(-10) -and -not (Running "sensor_campaign\.py.*--region $region\b")) {
+    if (-not $cloud -and $now -lt $end.AddMinutes(-10) -and -not (Running "sensor_campaign\.py.*--region $region\b")) {
         Say "starting campaign in $region (tag $tag)"
         Start-Process $s.python -WindowStyle Hidden -WorkingDirectory $root `
             -RedirectStandardOutput "$real\campaign_$tag.log" -RedirectStandardError "$real\campaign_$tag.err" `
@@ -52,7 +53,9 @@ foreach ($p in $s.regions.PSObject.Properties) {
 if (-not (Running "post_campaign\.py")) {
     Say "starting finish pipeline"
     $regions = ($s.regions.PSObject.Properties | ForEach-Object { $_.Name }) -join ","
+    $args_ = @("scripts\post_campaign.py","--end-utc",$s.end_utc,"--regions",$regions,"--python",$s.python,"--tectonic",$s.tectonic)
+    if ($cloud) { $args_ += @("--s3-data", "s3://$($s.bucket)/campaign/data/") }
     Start-Process $s.python -WindowStyle Hidden -WorkingDirectory $root `
         -RedirectStandardOutput "$real\post_campaign.out" -RedirectStandardError "$real\post_campaign.err" `
-        -ArgumentList "scripts\post_campaign.py","--end-utc",$s.end_utc,"--regions",$regions,"--python",$s.python,"--tectonic",$s.tectonic
+        -ArgumentList $args_
 }
