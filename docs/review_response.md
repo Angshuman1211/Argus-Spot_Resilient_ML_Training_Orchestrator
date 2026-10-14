@@ -81,6 +81,7 @@ labels. The old dual-axis lead-time chart was replaced by a single-axis plot of 
 
 - Real reclaim prediction. Neither the price model nor any model we trained is shown to predict real reclaims. The
   placement score (AUROC 0.79) and pool history (0.90) do carry signal, and a model trained on real labels reaches
-  0.81, but that rests on 1,446 instance-steps and 90 reclaims from one region on one day, and it does not clearly
-  beat the placement score alone. More days and regions are the next step.
+  0.81, and it now rests on 152 reclaims over two days in four regions, with day-ahead, held-out-pool and
+  held-out-region tests (placement + age 0.74 to 0.77). It does not clearly beat the placement score alone, and the
+  Rebalance Recommendation baseline has only 7 covered reclaims because AWS paused launches for a payment check.
 - A human read-through of the final paper by both authors.

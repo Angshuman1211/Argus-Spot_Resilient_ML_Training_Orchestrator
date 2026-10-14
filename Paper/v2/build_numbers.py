@@ -199,7 +199,7 @@ if os.path.exists(rr):
     for f in glob.glob(os.path.join(real_dir, "sensor_campaign_*.csv")) + glob.glob(os.path.join(real_dir, "sensor_launches_*.csv")):
         failed += int((pd.read_csv(f)["status"].astype(str) == "failed:InsufficientInstanceCapacity").sum())
     put("realCapFail", failed, "{:d}")
-    sensor_types = {"c5.large", "m5.large", "t3.medium", "c6i.large", "m6i.large"}
+    sensor_types = {"c5.large", "m5.large", "t3.medium", "c6i.large", "m6i.large", "r5.large", "r6i.large", "t3.large"}
     rec = pd.read_csv(os.path.join(real_dir, "real_reclaims.csv"))
     put("realTypesReclaimed", rec[rec.instance_type.isin(sensor_types)].instance_type.nunique(), "{:d}")
 lm = os.path.join(W, "real_label_model.json")
@@ -208,6 +208,20 @@ if os.path.exists(lm):
     put("realByPoolPlaceAge", m_["by_pool"]["placement+age (logistic)"]["auroc"], "{:.2f}")
     put("realByPoolPlaceAgeLo", m_["by_pool"]["placement+age (logistic)"]["ci"][0], "{:.2f}")
     put("realByPoolPlaceAgeHi", m_["by_pool"]["placement+age (logistic)"]["ci"][1], "{:.2f}")
+    for scheme, nm in (("forward_day", "Fwd"), ("by_region", "Region")):
+        if scheme in m_:
+            for key, short in (("placement+age (logistic)", "PlaceAge"), ("placement score alone", "Place")):
+                put(f"real{nm}{short}", m_[scheme][key]["auroc"], "{:.2f}")
+                put(f"real{nm}{short}Lo", m_[scheme][key]["ci"][0], "{:.2f}")
+                put(f"real{nm}{short}Hi", m_[scheme][key]["ci"][1], "{:.2f}")
+if os.path.exists(rr) and "by_region" in e:
+    put("realNRegions", len(e["by_region"]), "{:d}")
+    put("realNDays", len(e["days"]), "{:d}")
+    for reg, nm in (("eu-north-1", "EuNorth"), ("us-east-1", "UsEastOne"), ("us-east-2", "UsEastTwo"),
+                    ("ap-southeast-1", "ApSoutheast")):
+        if reg in e["by_region"]:
+            put(f"realPlace{nm}", e["by_region"][reg]["auroc"]["placement score"], "{:.2f}")
+            put(f"realRecl{nm}", e["by_region"][reg]["reclaimed"], "{:d}")
 
 # ------------------------------------------------------------------ real-cluster drills (from the logs)
 import datetime as _dt

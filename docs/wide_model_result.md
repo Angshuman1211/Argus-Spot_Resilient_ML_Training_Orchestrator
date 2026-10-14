@@ -247,3 +247,29 @@ on 98% of days. Eight days is still a short record.
 (`checkpoint_write_s3.csv`) ran at about 1.4 MB/s (256 MB in 179 s), which says only that the laptop uplink
 is slow. The 10, 60 and 300 s values remain assumptions; the in-region EKS-to-S3 rate needs measuring on the
 cluster.
+
+## 7b. Update: two days, four regions (13 and 14 Oct)
+
+Day 2 ran sensors in eu-north-1, us-east-1, us-east-2 and ap-southeast-1 from a cloud runner (8 types, up to
+2 per pool, 32 vCPU quota per region). It ended after about 3.5 hours when AWS put the account on a payment
+verification hold and refused all launches (`failed:Blocked` in the campaign CSVs). Totals over both days
+(`real_reclaim_eval.json`, `real_label_model.json`): 315 instances, 152 reclaimed (eu-north-1 112, us-east-2 16,
+ap-southeast-1 13, us-east-1 11), 4,487 steps, 229 positive.
+
+| Predictor | AUROC [95% CI by hour] |
+|---|---|
+| Price-history model | 0.53 [0.47, 0.60] |
+| AWS placement score | 0.74 [0.69, 0.80] (eu-north-1 0.79, us-east-1 0.58, us-east-2 0.59, ap-southeast-1 0.72) |
+| Pool reclaim rate, other hours | 0.85 [0.81, 0.89] |
+| Instance age (control) | 0.75 [0.67, 0.80] |
+| Logistic on placement, age, price (CV by hour) | 0.77 [0.71, 0.83] |
+| Rebalance Recommendation (7 covered reclaims only) | 0.66 [0.35, 0.76] |
+
+Stricter tests of placement + age (logistic): trained on day 1, tested on day 2 0.74 [0.66, 0.81] vs 0.68 for the
+placement score alone; held-out pools 0.76; held-out region 0.77. Price features add nothing in any test (price
+alone is at or below chance). The Rebalance Recommendation was recorded only for sensors launched in the half hour
+before the hold: it preceded all 7 of their reclaims (median 6 minutes ahead) and also reached 2 of 6 instances that
+were never reclaimed. Too few to rank.
+
+Conclusion unchanged and firmer: price history does not predict real reclaims; capacity signals do, more weakly in
+the US regions than in eu-north-1.
