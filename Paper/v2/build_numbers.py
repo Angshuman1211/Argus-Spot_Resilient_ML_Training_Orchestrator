@@ -169,7 +169,7 @@ if os.path.exists(rr):
     real_dir = os.path.join(ROOT, "ml", "data", "real")
     failed = 0
     for f in glob.glob(os.path.join(real_dir, "sensor_campaign_*.csv")) + glob.glob(os.path.join(real_dir, "sensor_launches_*.csv")):
-        failed += int(pd.read_csv(f)["status"].astype(str).str.startswith("failed").sum())
+        failed += int((pd.read_csv(f)["status"].astype(str) == "failed:InsufficientInstanceCapacity").sum())
     put("realCapFail", failed, "{:d}")
     sensor_types = {"c5.large", "m5.large", "t3.medium", "c6i.large", "m6i.large"}
     rec = pd.read_csv(os.path.join(real_dir, "real_reclaims.csv"))

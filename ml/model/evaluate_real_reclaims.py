@@ -58,7 +58,19 @@ def load_instances():
     now = pd.Timestamp.now(tz="UTC")
     cap = (inst["launched"] + MAX_LIFE).where(lambda s: s < now, now)
     inst["end"] = inst["reclaim_time"].fillna(cap)
+    inst["region"] = inst["availability_zone"].str[:-1]  # "us-east-1a" -> "us-east-1"
     return inst
+
+
+def fetch_prices(region, types, start):
+    """Spot price updates from `start` (AWS keeps 90 days), so a re-run days later still covers early sensors."""
+    import boto3
+    ec2 = boto3.client("ec2", region_name=region)
+    pages = ec2.get_paginator("describe_spot_price_history").paginate(
+        InstanceTypes=list(types), ProductDescriptions=["Linux/UNIX"], StartTime=start.to_pydatetime(),
+        EndTime=pd.Timestamp.now(tz="UTC").to_pydatetime())
+    rows = [(r["Timestamp"], r["InstanceType"], r["AvailabilityZone"], r["SpotPrice"]) for p in pages for r in p["SpotPriceHistory"]]
+    return price_source._normalize(pd.DataFrame(rows, columns=price_source.COLUMNS))
 
 
 def auc(y, s):
@@ -77,18 +89,20 @@ def main():
     print(f"{len(surv)} not reclaimed; of those, {(((surv.end - surv.launched).dt.total_seconds() / 60) > 30).sum()} "
           f"lived more than 30 minutes")
 
-    types = sorted(inst.instance_type.unique())
-    prices = price_source.Ec2PriceSource("eu-north-1").fetch(types)
     plc = pd.concat([pd.read_csv(f) for f in glob.glob(os.path.join(REAL, "placement_scores_*.csv"))], ignore_index=True)
     plc = plc[pd.to_numeric(plc.placement_score, errors="coerce").notna()]
     plc["time_utc"] = pd.to_datetime(plc.time_utc, utc=True, format="ISO8601")
     plc["placement_score"] = plc.placement_score.astype(float)
-    pred = Predictor(os.path.join(HERE, "final"), None, "eu-north-1")
-    series = {k: g.sort_values("timestamp") for k, g in prices.groupby(["instance_type", "availability_zone"])}
+    series, preds = {}, {}
+    for region, g in inst.groupby("region"):
+        prices = fetch_prices(region, sorted(g.instance_type.unique()), g.launched.min() - pd.Timedelta(days=4))
+        series.update({k: v.sort_values("timestamp") for k, v in prices.groupby(["instance_type", "availability_zone"])})
+        preds[region] = Predictor(os.path.join(HERE, "final"), None, region)
 
     rows = []
     for r in inst.itertuples():
         ps = series.get((r.instance_type, r.availability_zone))
+        pred = preds[r.region]
         if ps is None or r.instance_type not in pred.od:
             continue
         ts_s = sf.to_epoch_s(ps["timestamp"]).to_numpy()
@@ -102,7 +116,8 @@ def main():
             fut = (ts_s > t.timestamp()) & (ts_s <= (t + HORIZON).timestamp())
             now_p = price[keep][-1]
             pn = pl[pl.time_utc <= t]
-            rows.append(dict(instance=r.instance_id, pool=f"{r.instance_type}|{r.availability_zone}", t=t, hour=t.floor("h"),
+            rows.append(dict(instance=r.instance_id, pool=f"{r.instance_type}|{r.availability_zone}", region=r.region,
+                             t=t, hour=t.floor("h"), day=str(t.date()),
                              label=bool(pd.notna(r.reclaim_time) and t < r.reclaim_time <= t + HORIZON),
                              risk=pred.calibrate(raw), age_min=(t - r.launched).total_seconds() / 60,
                              placement=float(pn.placement_score.iloc[-1]) if len(pn) else np.nan,
@@ -110,8 +125,12 @@ def main():
     d = pd.DataFrame(rows)
     d["neg_placement"] = -d["placement"]
     d["neg_age"] = -d["age_min"]
-    d["pool_prior"] = [d[(d.pool == p) & (d.hour != h)].label.mean() if ((d.pool == p) & (d.hour != h)).any() else d.label.mean()
-                       for p, h in zip(d.pool, d.hour)]
+    # the pool's reclaim rate in every OTHER hour (leave one hour out), from pool and pool-hour sums
+    lab = d.label.astype(float)
+    pool_s, pool_n = lab.groupby(d.pool).transform("sum"), lab.groupby(d.pool).transform("count")
+    ph_s, ph_n = lab.groupby([d.pool, d.hour]).transform("sum"), lab.groupby([d.pool, d.hour]).transform("count")
+    rest = pool_n - ph_n
+    d["pool_prior"] = ((pool_s - ph_s) / rest.where(rest > 0)).fillna(lab.mean())
     # learned model, cross-validated by whole hours so nothing from the test hour is in training
     feats = ["placement", "age_min", "risk"]
     dd = d.dropna(subset=feats).copy()
@@ -160,6 +179,17 @@ def main():
         lo, hi = boot(col, lambda x: x[x.age_min <= 30])
         out["within_first_30_minutes"]["auroc"][name] = dict(auroc=a, ci=[lo, hi])
         print(f"  {name:<24}{a:>8.3f}   [{lo:.3f}, {hi:.3f}]")
+    # each region on its own (point estimates; regions with few reclaims are noisy)
+    out["by_region"] = {}
+    print(f"\n{'region':<16}{'inst':>6}{'recl':>6}{'steps':>7}{'pos':>5}  " + "  ".join(n.split(" ")[0][:8] for n, _ in names))
+    for region, g in d.groupby("region"):
+        gi = inst[inst.region == region]
+        out["by_region"][region] = dict(instances=len(gi), reclaimed=int(gi.reclaim_time.notna().sum()), steps=len(g),
+                                        positive_steps=int(g.label.sum()), auroc={n: auc(g.label, g[c]) for n, c in names})
+        print(f"{region:<16}{len(gi):>6}{int(gi.reclaim_time.notna().sum()):>6}{len(g):>7}{int(g.label.sum()):>5}  "
+              + "  ".join(f"{out['by_region'][region]['auroc'][n]:>8.3f}" for n, _ in names))
+    out["regions"] = sorted(out["by_region"])
+    out["days"] = sorted(d.day.unique())
     with open(os.path.join(HERE, "wide_results", "real_reclaim_eval.json"), "w") as f:
         json.dump(out, f, indent=1, default=float)
     d.to_csv(os.path.join(HERE, "wide_results", "real_reclaim_steps.csv.gz"), index=False, compression="gzip")

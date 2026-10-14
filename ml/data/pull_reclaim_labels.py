@@ -17,10 +17,12 @@ import os
 
 import boto3
 import pandas as pd
+from botocore.config import Config
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "real", "real_reclaims.csv")  # tracked: tiny and irreplaceable (CloudTrail keeps 90 days)
-REGION = os.environ.get("AWS_REGION", "eu-north-1")
+# every region a sensor campaign has run in; override with AWS_REGIONS=a,b,c
+REGIONS = os.environ.get("AWS_REGIONS", "eu-north-1,us-east-1,us-east-2,ap-southeast-1").split(",")
 
 
 def events(ct, name, **kw):
@@ -52,18 +54,24 @@ def launch_info(ct, instance_id):
 
 
 def main():
-    ct = boto3.client("cloudtrail", region_name=REGION)
+    known = set(pd.read_csv(OUT).instance_id) if os.path.exists(OUT) else set()
     rows = []
-    for ev in events(ct, "BidEvictedEvent"):
-        ids = []
-        for key in ("requestParameters", "serviceEventDetails", "responseElements"):
-            block = ev.get(key) or {}
-            ids = block.get("instanceIdSet") or block.get("instanceIds") or []
-            if ids:
-                break
-        for iid in ids:
-            info = launch_info(ct, iid)
-            rows.append(dict(instance_id=iid, region=ev["awsRegion"], reclaim_time=ev["eventTime"], **info))
+    for region in REGIONS:
+        # CloudTrail allows about 2 lookups per second per region: let botocore back off instead of failing
+        ct = boto3.client("cloudtrail", region_name=region, config=Config(retries={"max_attempts": 10, "mode": "adaptive"}))
+        for ev in events(ct, "BidEvictedEvent"):
+            ids = []
+            for key in ("requestParameters", "serviceEventDetails", "responseElements"):
+                block = ev.get(key) or {}
+                ids = block.get("instanceIdSet") or block.get("instanceIds") or []
+                if ids:
+                    break
+            for iid in ids:
+                if iid in known:
+                    continue
+                info = launch_info(ct, iid)
+                rows.append(dict(instance_id=iid, region=ev["awsRegion"], reclaim_time=ev["eventTime"], **info))
+        print(f"{region}: {sum(r['region'] == region for r in rows)} new reclaims", flush=True)
     new = pd.DataFrame(rows)
     if os.path.exists(OUT):
         new = pd.concat([pd.read_csv(OUT), new], ignore_index=True)

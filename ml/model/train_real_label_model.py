@@ -63,6 +63,15 @@ def cross_val(d, feats, kind, group_col, n_folds=5, seed=0):
     return pred
 
 
+def forward(d, feats, kind, last_day):
+    """Fit on every day before `last_day`, score only `last_day`: the out-of-time test."""
+    pred = pd.Series(np.nan, index=d.index)
+    tr, te = d.day < last_day, d.day == last_day
+    if d.loc[tr, "label"].nunique() == 2 and te.any():
+        pred[te] = fit_predict(kind, d.loc[tr, feats].to_numpy(), d.loc[tr, "label"].to_numpy(), d.loc[te, feats].to_numpy())
+    return pred
+
+
 def boot_ci(d, score, rng, n=500):
     hours = d.hour.unique()
     by = {h: d[d.hour == h] for h in hours}
@@ -82,13 +91,24 @@ def main():
     d["label"] = d["label"].astype(int)
     print(f"{len(d)} steps, {int(d.label.sum())} positive, {d.pool.nunique()} pools, {d.hour.nunique()} distinct hours")
     rng = np.random.default_rng(0)
+    schemes = [("by_hour", "hour"), ("by_pool", "pool")]
+    if "day" in d and d.day.nunique() >= 2:
+        schemes.append(("forward_day", "day"))  # train on every earlier day, test on the last one
+    if "region" in d and d.region.nunique() >= 2:
+        schemes.append(("by_region", "region"))  # hold out a whole region: does it transfer?
     out = {"steps": len(d), "positives": int(d.label.sum()), "pools": int(d.pool.nunique()), "hours": int(d.hour.nunique()),
-           "by_hour": {}, "by_pool": {}}
+           **{s: {} for s, _ in schemes}}
     rows = []
-    for scheme, col in (("by_hour", "hour"), ("by_pool", "pool")):
+    for scheme, col in schemes:
+        if scheme == "forward_day":
+            last = sorted(d.day.unique())[-1]
+            ev = d[d.day == last]
+            out["forward_day_test"] = dict(day=str(last), steps=len(ev), positives=int(ev.label.sum()))
+        else:
+            ev = d
         for name, feats in FEATURE_SETS.items():
             for kind in (("logistic", "boosted") if len(feats) > 1 else ("logistic",)):
-                p = cross_val(d, feats, kind, col)
+                p = forward(d, feats, kind, last) if scheme == "forward_day" else cross_val(d, feats, kind, col)
                 a = auc(d.label[p.notna()], p[p.notna()])
                 ap = average_precision_score(d.label[p.notna()], p[p.notna()]) if p.notna().any() else np.nan
                 lo, hi = boot_ci(d[p.notna()], p, rng)
@@ -98,14 +118,14 @@ def main():
         # baselines that need no fitting
         for label, score in (("placement score alone", -d["placement"]), ("price model alone", d["risk"]),
                              ("instance age alone", -d["age_min"])):
-            a = auc(d.label, score)
-            lo, hi = boot_ci(d, score, rng)
+            a = auc(ev.label, score[ev.index])  # on the same steps the models were scored on
+            lo, hi = boot_ci(ev, score, rng)
             out[scheme][label] = dict(auroc=a, ci=[lo, hi])
             rows.append((scheme, label, a, lo, hi))
     out["by_hour"]["pool reclaim rate (leave one hour out)"] = dict(auroc=auc(d.label, d["pool_prior"]))
-    print(f"{'scheme':<9}{'model':<36}{'AUROC':>7}   95% CI")
+    print(f"{'scheme':<12}{'model':<36}{'AUROC':>7}   95% CI")
     for scheme, key, a, lo, hi in rows:
-        print(f"{scheme:<9}{key:<36}{a:>7.3f}   [{lo:.3f}, {hi:.3f}]")
+        print(f"{scheme:<12}{key:<36}{a:>7.3f}   [{lo:.3f}, {hi:.3f}]")
 
     # final logistic model on all data, saved for use as a capacity-risk signal
     feats = FEATURE_SETS["placement+age"]
