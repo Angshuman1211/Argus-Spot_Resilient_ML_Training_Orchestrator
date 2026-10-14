@@ -73,6 +73,34 @@ def fetch_prices(region, types, start):
     return price_source._normalize(pd.DataFrame(rows, columns=price_source.COLUMNS))
 
 
+def add_rebalance(d, inst):
+    """AWS's Rebalance Recommendation as a predictor: 1 once the instance has received one (at or before the step),
+    else 0. NaN for instances launched before signal recording started in their region (we cannot know)."""
+    d["rebalance"] = np.nan
+    sig_path, cov_path = os.path.join(REAL, "spot_signals.csv"), os.path.join(REAL, "spot_signals_coverage.json")
+    if not (os.path.exists(sig_path) and os.path.exists(cov_path)):
+        return {}
+    sig = pd.read_csv(sig_path)
+    sig["time"] = pd.to_datetime(sig["time"], utc=True, format="ISO8601")
+    cover = {r: pd.Timestamp(t) for r, t in json.load(open(cov_path)).items()}
+    first_reb = sig[sig.signal == "rebalance"].groupby("instance_id")["time"].min()
+    covered = inst[[pd.notna(cover.get(r)) and l >= cover[r] for r, l in zip(inst.region, inst.launched)]]
+    m = d.instance.isin(covered.instance_id)
+    reb_t = d.loc[m, "instance"].map(first_reb)
+    d.loc[m, "rebalance"] = (reb_t.notna() & (reb_t <= d.loc[m, "t"])).astype(float)
+    # how often and how early it warned before a real reclaim
+    rec = covered[covered.reclaim_time.notna()].set_index("instance_id")
+    lead = (rec.reclaim_time - rec.index.map(first_reb).to_series(index=rec.index)).dt.total_seconds() / 60
+    warned = lead[lead > 0]
+    notreb = covered[covered.reclaim_time.isna()]
+    info = dict(covered_instances=len(covered), covered_reclaims=len(rec), reclaims_warned=int(len(warned)),
+                median_lead_min=float(warned.median()) if len(warned) else None,
+                false_warnings=int(notreb.instance_id.isin(first_reb.index).sum()), unreclaimed_covered=len(notreb))
+    print(f"rebalance recommendation: warned before {info['reclaims_warned']} of {len(rec)} covered reclaims "
+          f"(median lead {info['median_lead_min']} min); sent to {info['false_warnings']} of {len(notreb)} never-reclaimed")
+    return info
+
+
 def auc(y, s):
     ok = ~pd.isna(s)
     y, s = np.asarray(y)[ok], np.asarray(s, dtype=float)[ok]
@@ -123,6 +151,7 @@ def main():
                              placement=float(pn.placement_score.iloc[-1]) if len(pn) else np.nan,
                              proxy_spike=bool((price[fut] > now_p * 1.01).any()) if fut.any() else False))
     d = pd.DataFrame(rows)
+    sig_info = add_rebalance(d, inst)
     d["neg_placement"] = -d["placement"]
     d["neg_age"] = -d["age_min"]
     # the pool's reclaim rate in every OTHER hour (leave one hour out), from pool and pool-hour sums
@@ -163,8 +192,11 @@ def main():
     out = {"instances": len(inst), "reclaimed": int(got.sum()), "steps": len(d), "positive_steps": int(d.label.sum()),
            "base_rate": float(d.label.mean()), "median_minutes_alive_when_reclaimed": float(mins.median()), "predictors": {}}
     print(f"\n{'predictor':<24}{'AUROC':>8}{'95% CI':>18}")
-    names = (("price model", "risk"), ("placement score", "neg_placement"), ("instance age (control)", "neg_age"),
-             ("pool prior", "pool_prior"), ("proxy spike (future)", "proxy_spike"), ("learned (cv by hour)", "learned"))
+    names = [("price model", "risk"), ("placement score", "neg_placement"), ("instance age (control)", "neg_age"),
+             ("pool prior", "pool_prior"), ("proxy spike (future)", "proxy_spike"), ("learned (cv by hour)", "learned")]
+    if d["rebalance"].notna().any():
+        names.append(("rebalance recommendation", "rebalance"))
+        out["rebalance"] = sig_info
     for name, col in names:
         a = auc(d.label, d[col])
         lo, hi = boot(col)

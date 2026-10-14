@@ -89,6 +89,7 @@ def main():
     if a.s3_data:  # the runner syncs every 2 minutes and makes a final sync 10 minutes after the end
         ok.append(run_net("sync campaign data from S3", ["aws", "s3", "sync", a.s3_data, "ml/data/real/"], env=env))
     ok.append(run_net("pull reclaim labels", [py, "ml/data/pull_reclaim_labels.py"], env=env))
+    ok.append(run_net("pull spot signals (rebalance recommendations)", [py, "ml/data/pull_spot_signals.py"], env=env))
     ok.append(run_net("evaluate against real reclaims", [py, "ml/model/evaluate_real_reclaims.py"], env=env))
     ok.append(run("train real-label model", [py, "ml/model/train_real_label_model.py"], env=env))
     ok.append(run("paper numbers", [py, "Paper/v2/build_numbers.py"], env=env))
