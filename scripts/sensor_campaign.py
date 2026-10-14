@@ -63,6 +63,14 @@ def main():
         print(f"{region}: terminated {len(ids)} sensors", flush=True)
         return
 
+    # started while offline (a reboot before Wi-Fi is back)? wait for the network instead of crashing
+    while True:
+        try:
+            ec2.describe_availability_zones()
+            break
+        except (BotoCoreError, ClientError) as e:
+            print(f"{dt.datetime.utcnow():%H:%M}Z {region} waiting for network: {e}", flush=True)
+            time.sleep(60)
     zones = ec2.describe_availability_zones(Filters=[{"Name": "zone-type", "Values": ["availability-zone"]}])["AvailabilityZones"]
     azs = [z["ZoneName"] for z in zones]
     zone_id = {z["ZoneId"]: z["ZoneName"] for z in zones}
