@@ -103,6 +103,11 @@ def main():
     ok.append(committed and run_net("push", ["git", "push", "-q"], env=env))
     log("ALL STEPS OK" if all(ok) else "SOME STEPS FAILED: " + str(ok))
     log("DONE")
+    if os.name == "nt":  # wake whoever is at the laptop
+        msg = ("All done: results pulled, model retrained, paper rebuilt and pushed." if all(ok)
+               else "Finished, but some steps FAILED. See ml/data/real/post_campaign.log")
+        subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                          os.path.join(ROOT, "scripts", "alarm.ps1"), "-Message", msg])
 
 
 if __name__ == "__main__":
