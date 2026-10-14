@@ -124,6 +124,8 @@ if os.path.exists(rr):
              ("Instance age, younger is riskier (control)", "instance age (control)"),
              ("Logistic model on placement, age, price risk", "learned (cv by hour)"),
              ("Price spike in the next 15 min (not causal)", "proxy spike (future)")]
+    if "rebalance recommendation" in e["predictors"]:  # only once the EventBridge signals were recorded
+        order.insert(2, ("AWS Rebalance Recommendation received", "rebalance recommendation"))
     for label, k in order:
         p = e["predictors"][k]
         y = e["within_first_30_minutes"]["auroc"][k]["auroc"]

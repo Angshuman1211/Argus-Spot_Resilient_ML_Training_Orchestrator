@@ -165,6 +165,16 @@ if os.path.exists(rr):
         put(f"realHi{nm}", p_["ci"][1], "{:.2f}")
         y = e["within_first_30_minutes"]["auroc"][k]
         put(f"realYoung{nm}", y["auroc"], "{:.2f}")
+    if "rebalance recommendation" in e["predictors"]:  # AWS's free early warning, scored on covered sensors
+        p_, rb = e["predictors"]["rebalance recommendation"], e["rebalance"]
+        put("realAurocReb", p_["auroc"], "{:.2f}")
+        put("realLoReb", p_["ci"][0], "{:.2f}")
+        put("realHiReb", p_["ci"][1], "{:.2f}")
+        put("realRebCovered", rb["covered_reclaims"], "{:d}")
+        put("realRebWarned", rb["reclaims_warned"], "{:d}")
+        put("realRebLead", rb["median_lead_min"] or 0, "{:.0f}")
+        put("realRebFalse", rb["false_warnings"], "{:d}")
+        put("realRebUnrec", rb["unreclaimed_covered"], "{:d}")
     # launch attempts that failed for lack of capacity, over every sensor session (the first session wrote a different file name)
     real_dir = os.path.join(ROOT, "ml", "data", "real")
     failed = 0
