@@ -73,3 +73,15 @@ warning: argus_v2.tex:111: Underfull \vbox (badness 3746) has occurred while \ou
 warning: argus_v2.bbl:19: Underfull \hbox (badness 2635) in paragraph at lines 14--19
 warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
 23:03:17Z START stage results: git add -f Paper/v2 ml/data/real ml/model/wide_results ml/model/final
+23:03:17Z OK stage results
+
+23:03:17Z START commit: git commit -q -m real reclaim campaign results and real-label model
+23:03:17Z OK commit
+
+23:03:17Z START push: git push -q
+23:03:20Z OK push
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator.git
+23:03:20Z SOME STEPS FAILED: [True, True, True, True, True, False, True, True]
+23:03:20Z root key NOT deleted: a step failed, so the key is kept for fixing it
+23:03:20Z DONE

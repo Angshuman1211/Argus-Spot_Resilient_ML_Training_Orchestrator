@@ -161,35 +161,37 @@ before the second), and neither pool had a price spike.
 
 **Producing real labels on purpose.** With your approval a fleet of tiny Spot instances (`scripts/sensor_campaign.py`:
 one per instance type and AZ pool, replaced when reclaimed, no public IP, every instance self-terminating within
-2 hours, 150 launches maximum) ran for about three hours in eu-north-1 and recorded AWS's Spot placement score for every
-pool every five minutes. Of 36 instances, **29 were reclaimed**, the median after 12 minutes and 22 of them within 25
-minutes. A further **43 launch attempts failed** with `InsufficientInstanceCapacity`, itself a label of a pool with no
-capacity. Reclaims came from three of the five instance types (m5.large 12, m6i.large 11, c6i.large 6); c5.large and
-t3.medium were never reclaimed, so pool identity explains much of the pattern. The unit of analysis is an (instance, 5-minute step); the label is a reclaim of that
-instance within the next 15 minutes (288 steps, 39 positive). Because reclaims hit young instances, instance age is
-included as a control (`ml/model/evaluate_real_reclaims.py`, `real_reclaim_eval.json`):
+2 hours) ran in several sessions on 13 Oct in eu-north-1 (the last one 8 hours) and recorded AWS's Spot placement score
+for every pool every five minutes. Of 140 instances, **90 were reclaimed**, the median after 11 minutes. A further
+**116 launch attempts failed** with `InsufficientInstanceCapacity`, itself a label of a pool with no capacity.
+Reclaims came from four of the five instance types (m5.large 44, m6i.large 38, c6i.large 7, c5.large 1); t3.medium was
+never reclaimed, so pool identity explains much of the pattern. The unit of analysis is an (instance, 5-minute step);
+the label is a reclaim of that instance within the next 15 minutes (1,446 steps, 124 positive). Because reclaims hit
+young instances, instance age is included as a control (`ml/model/evaluate_real_reclaims.py`, `real_reclaim_eval.json`):
 
 | Predictor | AUROC | 95% interval (resampled by hour) | First 30 min of an instance's life |
 |---|---:|---|---:|
-| Price-history model (retrained) | 0.44 | [0.40, 0.54] | 0.36 |
-| AWS Spot placement score | 0.81 | [0.67, 0.90] | 0.89 |
-| Reclaim rate of the pool (leave one hour out) | 0.87 | [0.79, 0.93] | 0.86 |
-| Instance age, younger is riskier (control) | 0.72 | [0.40, 0.82] | 0.73 |
-| Logistic model on placement, age, price risk | 0.76 | [0.61, 0.95] | 0.81 |
+| Price-history model (retrained) | 0.54 | [0.46, 0.62] | 0.52 |
+| AWS Spot placement score | 0.79 | [0.74, 0.84] | 0.79 |
+| Reclaim rate of the pool (leave one hour out) | 0.90 | [0.86, 0.93] | 0.88 |
+| Instance age, younger is riskier (control) | 0.77 | [0.71, 0.84] | 0.75 |
+| Logistic model on placement, age, price risk | 0.81 | [0.74, 0.86] | 0.81 |
 | Price spike in the next 15 min (not causal) | 0.50 | [0.50, 0.50] | 0.50 |
 
 The price-history model has no skill on real reclaims, and the price-spike proxy never coincides with them.
 AWS's placement score does carry signal, including among young instances, so it is not just tracking age. The pool's
-own reclaim rate does about as well and we cannot separate the two with this little data (pools differ in
-placement score). A learned model on three features does not beat the placement score alone.
+own reclaim rate does better still, and we cannot separate the two cleanly (pools differ in placement score). The
+learned model on three features is a little above the placement score alone but well inside the intervals. On pools
+held out entirely (`train_real_label_model.py`, cross-validation by pool) placement plus age reaches 0.81 [0.74, 0.87],
+while price risk alone is below chance (0.40), which is the strictest evidence that the price features do not transfer.
 
 **What this does to the other results.** Sections 4 to 6 are correct about what they measure (how well price
 behaviour is predicted, and the checkpointing benefit if reclaims followed price spikes). They do not show that the
 model predicts real reclaims; the evidence here says it does not. A deployed system should replace or combine the price
-features with capacity signals such as the placement score. The intervals are wide because the record covers only
-a few hours in one region, and sensors that are reclaimed within minutes of launch may behave differently from
-long-running training nodes. More collection (`scripts/sensor_campaign.py --hours N`, then
-`ml/data/pull_reclaim_labels.py` and the evaluation) and a model trained on real labels are the next step.
+features with capacity signals such as the placement score. The record is one region and one day, and sensors that are
+reclaimed within minutes of launch may behave differently from long-running training nodes. More collection
+(`scripts/sensor_campaign.py`, then `ml/data/pull_reclaim_labels.py` and the evaluation) over more days and regions is
+the next step.
 
 ## 8. Limits
 

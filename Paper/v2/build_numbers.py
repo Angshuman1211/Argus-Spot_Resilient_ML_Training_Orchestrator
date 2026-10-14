@@ -165,6 +165,21 @@ if os.path.exists(rr):
         put(f"realHi{nm}", p_["ci"][1], "{:.2f}")
         y = e["within_first_30_minutes"]["auroc"][k]
         put(f"realYoung{nm}", y["auroc"], "{:.2f}")
+    # launch attempts that failed for lack of capacity, over every sensor session (the first session wrote a different file name)
+    real_dir = os.path.join(ROOT, "ml", "data", "real")
+    failed = 0
+    for f in glob.glob(os.path.join(real_dir, "sensor_campaign_*.csv")) + glob.glob(os.path.join(real_dir, "sensor_launches_*.csv")):
+        failed += int(pd.read_csv(f)["status"].astype(str).str.startswith("failed").sum())
+    put("realCapFail", failed, "{:d}")
+    sensor_types = {"c5.large", "m5.large", "t3.medium", "c6i.large", "m6i.large"}
+    rec = pd.read_csv(os.path.join(real_dir, "real_reclaims.csv"))
+    put("realTypesReclaimed", rec[rec.instance_type.isin(sensor_types)].instance_type.nunique(), "{:d}")
+lm = os.path.join(W, "real_label_model.json")
+if os.path.exists(lm):
+    m_ = json.load(open(lm))
+    put("realByPoolPlaceAge", m_["by_pool"]["placement+age (logistic)"]["auroc"], "{:.2f}")
+    put("realByPoolPlaceAgeLo", m_["by_pool"]["placement+age (logistic)"]["ci"][0], "{:.2f}")
+    put("realByPoolPlaceAgeHi", m_["by_pool"]["placement+age (logistic)"]["ci"][1], "{:.2f}")
 
 # ------------------------------------------------------------------ real-cluster drills (from the logs)
 import datetime as _dt

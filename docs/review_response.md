@@ -80,6 +80,7 @@ labels. The old dual-axis lead-time chart was replaced by a single-axis plot of 
 ## What is not closed
 
 - Real reclaim prediction. Neither the price model nor any model we trained is shown to predict real reclaims. The
-  placement score is promising but rests on 288 instance-steps over about three hours in one region, with wide
-  intervals. More sensor data and a model trained on real labels are the next step.
+  placement score (AUROC 0.79) and pool history (0.90) do carry signal, and a model trained on real labels reaches
+  0.81, but that rests on 1,446 instance-steps and 90 reclaims from one region on one day, and it does not clearly
+  beat the placement score alone. More days and regions are the next step.
 - A human read-through of the final paper by both authors.
