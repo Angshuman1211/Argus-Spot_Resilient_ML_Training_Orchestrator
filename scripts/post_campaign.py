@@ -103,12 +103,52 @@ def main():
     committed = nothing_new or run("commit", ["git", "commit", "-q", "-m", f"real reclaim results, {len(regions)} regions, real-label model"], env=env)
     ok.append(committed and run_net("push", ["git", "push", "-q"], env=env))
     log("ALL STEPS OK" if all(ok) else "SOME STEPS FAILED: " + str(ok))
+    problems = final_check(regions, env)  # is everything really finished and saved?
+    for p in problems:
+        log(f"CHECK FAILED: {p}")
     log("DONE")
-    if os.name == "nt":  # wake whoever is at the laptop
-        msg = ("All done: results pulled, model retrained, paper rebuilt and pushed." if all(ok)
-               else "Finished, but some steps FAILED. See ml/data/real/post_campaign.log")
+    if os.name == "nt":  # wake whoever is at the laptop, only now that everything has been checked
+        if all(ok) and not problems:
+            msg = ("All done and saved: sensors and cloud runner stopped, results pulled, model retrained, "
+                   "paper rebuilt, committed and pushed to GitHub.")
+        else:
+            msg = "Finished, but NOT everything is done:\n" + "\n".join(
+                [f"- step failed ({sum(not x for x in ok)} of {len(ok)})"] * (not all(ok)) + [f"- {p}" for p in problems]
+            ) + "\nSee ml/data/real/post_campaign.log"
         subprocess.Popen(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
                           os.path.join(ROOT, "scripts", "alarm.ps1"), "-Message", msg])
+
+
+def final_check(regions, env):
+    """Everything that must be true before the alarm says 'done'. Returns what is not."""
+    problems = []
+    try:
+        import boto3
+        sess = boto3.Session(profile_name=env.get("AWS_PROFILE"))
+        for r in regions:
+            ec2 = sess.client("ec2", region_name=r)
+            n = sum(len(x["Instances"]) for x in ec2.describe_instances(Filters=[
+                {"Name": "tag:argus-sensor", "Values": ["true"]},
+                {"Name": "instance-state-name", "Values": ["pending", "running"]}])["Reservations"])
+            if n:
+                problems.append(f"{n} sensors still running in {r}")
+        ec2 = sess.client("ec2", region_name="eu-north-1")
+        if ec2.describe_instances(Filters=[{"Name": "tag:argus-runner", "Values": ["true"]},
+                                           {"Name": "instance-state-name", "Values": ["pending", "running"]}])["Reservations"]:
+            problems.append("cloud runner machine still running")
+    except Exception as e:  # noqa: BLE001 - report, never crash before the alarm
+        problems.append(f"could not check AWS: {e}")
+    # results saved: nothing left unstaged in the result folders, and the branch is pushed
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", "ml/data/real", "ml/model/wide_results",
+                            "ml/model/final"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    # log files keep growing after the commit (this very check writes to one), so they do not count
+    if any(not line.startswith("??") and not line.rstrip().endswith((".log", ".out", ".err")) for line in dirty.splitlines()):
+        problems.append("some result files are not committed")
+    subprocess.run(["git", "fetch", "-q"], cwd=ROOT, env=env)
+    ahead = subprocess.run(["git", "rev-list", "--count", "@{u}..HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    if ahead != "0":
+        problems.append(f"{ahead or 'some'} commits not pushed to GitHub")
+    return problems
 
 
 if __name__ == "__main__":
