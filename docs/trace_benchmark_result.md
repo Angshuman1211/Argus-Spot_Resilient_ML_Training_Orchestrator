@@ -150,6 +150,23 @@ roughly ties the best non-predictive policy (1.150 to 1.165 against 1.163), 50% 
 shipped model measures 19% recall at 7% precision, in the first column. These synthetic alarms are idealized (independent, exactly 10 minutes ahead), while real model
 alarms cluster, so read the table as an optimistic bound.
 
+**Rerun on the October trace (the one the paper uses), `results/trace_oct_new/summary_synth.csv`.** The conclusion
+above does not hold there. Slowdown at 15 nodes, C = 300 s, with Young-Daly alone at 1.34:
+
+| Precision \ Recall | 20% | 50% | 80% | 95% |
+|---|---:|---:|---:|---:|
+| 90% | 1.33 | 1.32 | 1.30 | 1.29 |
+| 60% | 1.33 | 1.33 | 1.34 | 1.34 |
+| 30% | 1.36 | 1.40 | 1.45 | 1.48 |
+| 10% | 1.47 | 1.69 | 1.88 | 1.97 |
+| 5% | 1.64 | 2.04 | 2.40 | 2.55 |
+
+October has more events, so a false alarm (a 300 s checkpoint plus a restart on 15 nodes) is paid far more often,
+and a synthetic predictor stacked on the Young-Daly schedule only helps at high precision. The real model, which
+replaces the schedule instead of adding to it, does better than any of these at its 10% budget (1.14, recall 74%,
+precision 10%), and its own operating curve (`detection.csv` with `summary.csv`, paper Appendix "Operating points")
+is the sweep the paper reports.
+
 ## 5. Limitations (state all of these in the paper)
 
 - **Kills are a proxy** (price spikes), the same proxy the model was trained on. The model's skill on this
