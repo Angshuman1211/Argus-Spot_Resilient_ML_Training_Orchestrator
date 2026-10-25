@@ -63,6 +63,18 @@ def predict(instance_type: str = "m5.large", az: str = "eu-north-1a"):
     }
 
 
+@app.get("/reclaim_risk")
+def reclaim_risk(instance_type: str = "m5.large", az: str = "eu-north-1a", instance_age_min: float = 0.0):
+    """Same mock score, shaped like the real service's capacity endpoint (riskSignal: capacity)."""
+    return {
+        "instance_type": instance_type,
+        "az": az,
+        "instance_age_min": instance_age_min,
+        "reclaim_risk": _current_risk(),
+        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

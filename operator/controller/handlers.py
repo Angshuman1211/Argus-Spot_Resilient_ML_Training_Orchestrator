@@ -1,13 +1,12 @@
 """
 Argus Operator — kopf event handlers.
 
-Week 4: stubs only.
-Week 5: full reconcile loop — risk polling, S3 checkpoint trigger, cordon, reschedule, SQS.
+Reconcile loop: poll the risk score, and above the threshold ask the pod to flush a checkpoint, wait for
+its acknowledgement, cordon the node, delete the pod and recreate it from a snapshot, publish an SQS event.
 
-Checkpoint trigger mechanism (Person B's design):
-  Operator writes _FLUSH_TRIGGER marker to S3 → training pod polls every 100 batches →
-  detects marker → saves model.pt → deletes marker.
-  This keeps the operator decoupled from the training process internals.
+Checkpoint handshake (see trigger_s3_checkpoint): the operator writes a fresh id to _FLUSH_TRIGGER, the
+pod saves model.pt and writes the same id to _FLUSH_ACK. This keeps the operator decoupled from the
+training process internals and needs no s3:DeleteObject.
 """
 
 import logging
@@ -42,6 +41,9 @@ UNCORDON_AFTER_SECONDS = int(os.environ.get("UNCORDON_AFTER_SECONDS", "600"))
 DEFAULT_AZ = os.environ.get("DEFAULT_AZ", "eu-north-1a")
 CHECKPOINT_WAIT_SECONDS = float(os.environ.get("CHECKPOINT_WAIT_SECONDS", "60"))
 CHECKPOINT_WAIT_POLL_SECONDS = float(os.environ.get("CHECKPOINT_WAIT_POLL_SECONDS", "2"))
+# How long a migration waits for the old pod to terminate before recreating it; if it is still going,
+# the next reconcile recreates it instead.
+RECREATE_WAIT_SECONDS = float(os.environ.get("RECREATE_WAIT_SECONDS", "120"))  # pod grace period is 90 s
 
 # When AWS_ENDPOINT_URL is set (local dev via .env.local), boto3 hits LocalStack.
 # On EKS (Week 6) the var is unset and boto3 hits real AWS via IRSA credentials.
@@ -192,21 +194,48 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
         return
     _maybe_uncordon(name, status, patch, pods)
 
+    # A migration deleted the pod but could not recreate it yet (old pod still terminating)
+    snapshot = status.get("podSnapshot")
+    if snapshot and not pods:
+        try:
+            if scheduler.recreate_pod(snapshot, namespace):
+                logger.info(f"[RECONCILE] '{name}' recreated its training pod")
+        except Exception as e:
+            logger.error(f"[RECONCILE] '{name}' could not recreate its training pod: {e}")
+        return
+
     # 1. Poll prediction service
+    signal = spec.get("riskSignal", "price")
     try:
-        response = httpx.get(
-            f"{PREDICT_SERVICE_URL}/predict",
-            params={"instance_type": instance_type, "az": az},
-            timeout=10.0,
-        )
+        if signal == "capacity":
+            node = scheduler.get_pod_node(name, namespace)
+            if not node:
+                logger.info(f"[RECONCILE] '{name}' pod has no node yet - no capacity risk to read")
+                return
+            info = scheduler.get_node_info(node)
+            instance_type = info["instance_type"] or instance_type
+            az = info["zone"] or az
+            if info["age_min"] is None:
+                raise ValueError(f"node '{node}' has no creation time")
+            response = httpx.get(
+                f"{PREDICT_SERVICE_URL}/reclaim_risk",
+                params={"instance_type": instance_type, "az": az, "instance_age_min": round(info["age_min"], 2)},
+                timeout=10.0,
+            )
+        else:
+            response = httpx.get(
+                f"{PREDICT_SERVICE_URL}/predict",
+                params={"instance_type": instance_type, "az": az},
+                timeout=10.0,
+            )
         response.raise_for_status()
         risk = response.json()
     except Exception as e:
         predict_failures.labels(job_name=name).inc()
-        logger.warning(f"[RECONCILE] '{name}' - predict service unreachable: {e}")
+        logger.warning(f"[RECONCILE] '{name}' - {signal} risk unavailable: {e}")
         return
 
-    risk_score = risk["risk_score"]
+    risk_score = risk["reclaim_risk"] if signal == "capacity" else risk["risk_score"]
     patch.status["lastRiskScore"] = risk_score
     risk_score_gauge.labels(job_name=name, instance_type=instance_type, az=az).set(risk_score)
 
@@ -257,8 +286,11 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
     except Exception as e:
         logger.warning(f"[RECONCILE] '{name}' SQS publish failed (non-fatal): {e}")
 
-    # 4. Cordon node + reschedule pod
+    # 4. Cordon node, delete the pod and recreate it from a snapshot (it is a bare Pod, so nothing else would)
     try:
+        snapshot = scheduler.snapshot_pod(name, namespace) or status.get("podSnapshot")
+        if snapshot:
+            patch.status["podSnapshot"] = snapshot
         node_name = scheduler.get_pod_node(name, namespace)
         if node_name:
             scheduler.cordon_node(node_name)
@@ -269,6 +301,13 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
         logger.error(f"[RECONCILE] '{name}' reschedule failed: {e}")
         patch.status["phase"] = "Failed"
         return
+    if snapshot:
+        try:
+            scheduler.recreate_pod(snapshot, namespace, wait_seconds=RECREATE_WAIT_SECONDS)
+        except Exception as e:  # the next reconcile retries from status.podSnapshot
+            logger.warning(f"[RECONCILE] '{name}' recreate failed, will retry: {e}")
+    else:
+        logger.warning(f"[RECONCILE] '{name}' had no pod to snapshot - it will not be recreated")
 
     patch.status["phase"] = "Running"
     patch.status["retryCount"] = 0
