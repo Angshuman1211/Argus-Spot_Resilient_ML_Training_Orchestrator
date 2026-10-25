@@ -15,7 +15,7 @@ aws s3 cp $B/code/sensor_campaign.py $D/scripts/sensor_campaign.py
 aws s3 cp $B/state.json $D/state.json
 aws s3 sync $B/data/ $D/ml/data/real/
 
-read -r END PER MAX <<<"$(python3 -c "import json; s=json.load(open('$D/state.json')); print(s['end_utc'], s['per_pool'], s['max_launches'])")"
+read -r END PER MAX ACTIVE USD BUDGET <<<"$(python3 -c "import json; s=json.load(open('$D/state.json')); print(s['end_utc'], s['per_pool'], s['max_launches'], s.get('max_active', 0), s.get('stop_at_usd', 0), s.get('budget_name', 'argus-campaign-spend'))")"
 python3 -c "import json; [print(r, t) for r, t in json.load(open('$D/state.json'))['regions'].items()]" | while read -r REGION TAG; do
 cat > /etc/systemd/system/argus-campaign-$REGION.service <<EOF
 [Unit]
@@ -25,7 +25,7 @@ Wants=network-online.target
 [Service]
 WorkingDirectory=$D
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 scripts/sensor_campaign.py --region $REGION --end-utc $END --resume-tag $TAG --per-pool $PER --max-launches $MAX
+ExecStart=/usr/bin/python3 scripts/sensor_campaign.py --region $REGION --end-utc $END --resume-tag $TAG --per-pool $PER --max-launches $MAX --max-active $ACTIVE --stop-at-usd $USD --budget-name $BUDGET
 StandardOutput=append:$D/ml/data/real/campaign_$TAG.log
 StandardError=append:$D/ml/data/real/campaign_$TAG.err
 Restart=on-failure
@@ -51,7 +51,12 @@ WantedBy=timers.target
 EOF
 cat > $D/finish.sh <<EOF
 #!/bin/bash
-while [ \$(date -u +%s) -lt \$(( \$(date -u -d "$END" +%s) + 600 )) ]; do sleep 60; done
+# wait for the planned end, or less if every region already stopped (spending stop); 15 min of grace after boot
+sleep 900
+while [ \$(date -u +%s) -lt \$(( \$(date -u -d "$END" +%s) + 600 )) ]; do
+  systemctl list-units 'argus-campaign-*' --state=active,activating --no-legend | grep -q . || break
+  sleep 60
+done
 systemctl start argus-sync.service
 aws s3 cp /var/log/cloud-init-output.log $B/data/cloud_runner_boot.log
 shutdown -h now

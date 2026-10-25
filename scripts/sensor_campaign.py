@@ -8,6 +8,9 @@ quickly. Strictly capped; every limit is enforced here and by the instances them
   * every instance also self-terminates (shutdown timer, shutdown behaviour = terminate), at most 2 hours
     after launch and never later than the campaign end, even if this process dies
   * no public IP, no inbound rules, IMDSv2, tagged argus-sensor=true
+  * optional: at most --max-active sensors at once, and a spending stop (--stop-at-usd) that reads the account's
+    actual usage from an AWS Budget every 30 minutes and ends the campaign early once it is reached; it then writes
+    stopped_<tag>.txt so the finish pipeline knows not to wait for the planned end
 
 Capacity failures (InsufficientInstanceCapacity) are logged as labels too: that pool had no Spot capacity.
 Quota failures (MaxSpotInstanceCountExceeded, VcpuLimitExceeded) are logged but are not labels; launching pauses
@@ -52,6 +55,9 @@ def main():
     ap.add_argument("--end-utc", help="absolute end, e.g. 2026-10-13T22:41 (overrides --hours; used when resuming)")
     ap.add_argument("--resume-tag", help="tag of an earlier run's CSVs to append to, e.g. us-east-1_20261014T101500Z")
     ap.add_argument("--stop-only", action="store_true", help="terminate every sensor in the region and exit")
+    ap.add_argument("--max-active", type=int, default=0, help="sensors running at once in this region (0 = quota decides)")
+    ap.add_argument("--stop-at-usd", type=float, default=0, help="end early once the budget's actual spend reaches this")
+    ap.add_argument("--budget-name", default="argus-campaign-spend")
     a = ap.parse_args()
     region, types = a.region, a.types.split(",")
 
@@ -112,6 +118,12 @@ def main():
     if log.tell() == 0:
         w.writerow(["instance_id", "instance_type", "availability_zone", "event_time_utc", "status"])
     last_fail, quota_until = {}, 0.0
+    spend_checked, stop_reason = 0.0, None
+
+    def spend():
+        acct = boto3.client("sts").get_caller_identity()["Account"]
+        b = boto3.client("budgets", region_name="us-east-1").describe_budget(AccountId=acct, BudgetName=a.budget_name)
+        return float(b["Budget"]["CalculatedSpend"]["ActualSpend"]["Amount"])
     print(f"{region}: {len(pools)} pools, campaign until {dt.datetime.utcfromtimestamp(t_end):%H:%M}Z, log {log_path}", flush=True)
 
     def active():
@@ -138,12 +150,24 @@ def main():
         return r["Instances"][0]["InstanceId"]
 
     while time.time() < t_end:
+        if a.stop_at_usd and time.time() - spend_checked > 1800:
+            spend_checked = time.time()
+            try:
+                usd = spend()
+                print(f"{dt.datetime.utcnow():%H:%M}Z {region} spend so far ${usd:.2f} (stop at ${a.stop_at_usd:.0f})", flush=True)
+                if usd >= a.stop_at_usd:
+                    stop_reason = f"spending stop: ${usd:.2f} >= ${a.stop_at_usd:.2f}"
+                    break
+            except (BotoCoreError, ClientError) as e:  # cannot read the budget: keep going, retry in 30 minutes
+                print(f"{dt.datetime.utcnow():%H:%M}Z {region} budget not readable: {e}", flush=True)
         try:
             have = active()
             # fill the emptiest pools first, so a quota limit spreads sensors evenly
             for pool in sorted(pools, key=lambda p: have.get(p, 0)):
                 t, az = pool
                 if launches >= a.max_launches or time.time() < quota_until:
+                    break
+                if a.max_active and sum(have.values()) >= a.max_active:
                     break
                 if have.get(pool, 0) >= a.per_pool or time.time() - last_fail.get(pool, 0) < BACKOFF_AFTER_FAILURE_S:
                     continue
@@ -184,6 +208,10 @@ def main():
     if ids:
         ec2.terminate_instances(InstanceIds=ids)
     print(f"campaign over: {launches} launches, terminated {len(ids)} remaining", flush=True)
+    if stop_reason:
+        with open(os.path.join(OUT_DIR, f"stopped_{tag}.txt"), "w") as f:
+            f.write(f"{dt.datetime.utcnow().isoformat()}Z {stop_reason}" + chr(10))
+        print(stop_reason, flush=True)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
 # Also lets user argus-sensor read that log group (ml/data/pull_spot_signals.py does the reading).
 # Run it in AWS CloudShell:   bash setup_spot_signals.sh        Remove:   bash setup_spot_signals.sh --delete
 set -euo pipefail
-REGIONS="eu-north-1 us-east-1 us-east-2 ap-southeast-1"
+REGIONS="eu-north-1 us-east-1 us-east-2 ap-southeast-1 us-west-2 eu-west-1 eu-central-1 ap-south-1"
 RULE=argus-spot-signals
 GROUP=/aws/events/argus-spot-signals
 ACCT=$(aws sts get-caller-identity --query Account --output text)

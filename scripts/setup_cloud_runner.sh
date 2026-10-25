@@ -11,7 +11,7 @@ set -euo pipefail
 ROLE=argus-campaign-runner
 ACCT=$(aws sts get-caller-identity --query Account --output text)
 BUCKET=argus-checkpoints-$ACCT
-REGIONS='["eu-north-1", "us-east-1", "us-east-2", "ap-southeast-1"]'
+REGIONS='["eu-north-1", "us-east-1", "us-east-2", "ap-southeast-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-south-1"]'
 
 if [ "${1:-}" = "--delete" ]; then
   aws iam remove-role-from-instance-profile --instance-profile-name $ROLE --role-name $ROLE || true
@@ -36,7 +36,8 @@ cat > /tmp/runner.json <<EOF
     {"Effect": "Allow", "Action": "ec2:TerminateInstances", "Resource": "*",
      "Condition": {"StringEquals": {"ec2:ResourceTag/argus-sensor": "true"}}},
     {"Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject"], "Resource": "arn:aws:s3:::$BUCKET/campaign/*"},
-    {"Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::$BUCKET", "Condition": {"StringLike": {"s3:prefix": "campaign/*"}}}
+    {"Effect": "Allow", "Action": "s3:ListBucket", "Resource": "arn:aws:s3:::$BUCKET", "Condition": {"StringLike": {"s3:prefix": "campaign/*"}}},
+    {"Effect": "Allow", "Action": "budgets:ViewBudget", "Resource": "arn:aws:budgets::$ACCT:budget/argus-campaign-spend"}
   ]
 }
 EOF

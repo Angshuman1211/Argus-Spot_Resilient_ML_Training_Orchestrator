@@ -54,7 +54,10 @@ def main():
         {"Name": "name", "Values": ["al2023-ami-2023*-x86_64"]}, {"Name": "state", "Values": ["available"]}])["Images"],
         key=lambda i: i["CreationDate"])[-1]["ImageId"]
     subnet = ec2.describe_subnets(Filters=[{"Name": "default-for-az", "Values": ["true"]}])["Subnets"][0]["SubnetId"]
-    hours_left = 30  # hard backstop: the machine powers off after this many hours whatever happens
+    # hard backstop: the machine powers off 2 hours after the planned end whatever happens
+    import datetime as dt
+    end = dt.datetime.fromisoformat(state["end_utc"]).replace(tzinfo=dt.timezone.utc)
+    hours_left = int((end - dt.datetime.now(dt.timezone.utc)).total_seconds() // 3600) + 2
     user_data = (f"#!/bin/bash\nshutdown -h +{hours_left * 60}\nexport AWS_DEFAULT_REGION={REGION}\n"
                  f"aws s3 cp s3://{bucket}/campaign/code/cloud_runner_boot.sh /opt/boot.sh\nbash /opt/boot.sh {bucket}\n")
     r = ec2.run_instances(

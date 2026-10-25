@@ -10,7 +10,7 @@
 # Remove it afterwards:  bash setup_sensor_user.sh --delete
 set -euo pipefail
 NAME=argus-sensor
-REGIONS="eu-north-1 us-east-1 us-east-2 ap-southeast-1"
+REGIONS="eu-north-1 us-east-1 us-east-2 ap-southeast-1 us-west-2 eu-west-1 eu-central-1 ap-south-1"
 
 if [ "${1:-}" = "--delete" ]; then
   for k in $(aws iam list-access-keys --user-name $NAME --query 'AccessKeyMetadata[].AccessKeyId' --output text); do
@@ -30,9 +30,9 @@ cat > /tmp/argus-sensor-policy.json <<'EOF'
      "Action": ["ec2:Describe*", "ec2:GetSpotPlacementScores", "cloudtrail:LookupEvents",
                 "servicequotas:GetServiceQuota", "servicequotas:ListRequestedServiceQuotaChangeHistory"],
      "Resource": "*",
-     "Condition": {"StringEquals": {"aws:RequestedRegion": ["eu-north-1", "us-east-1", "us-east-2", "ap-southeast-1"]}}},
+     "Condition": {"StringEquals": {"aws:RequestedRegion": ["eu-north-1", "us-east-1", "us-east-2", "ap-southeast-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-south-1"]}}},
     {"Sid": "Launch", "Effect": "Allow", "Action": "ec2:RunInstances", "Resource": "*",
-     "Condition": {"StringEquals": {"aws:RequestedRegion": ["eu-north-1", "us-east-1", "us-east-2", "ap-southeast-1"]}}},
+     "Condition": {"StringEquals": {"aws:RequestedRegion": ["eu-north-1", "us-east-1", "us-east-2", "ap-southeast-1", "us-west-2", "eu-west-1", "eu-central-1", "ap-south-1"]}}},
     {"Sid": "TagOnLaunch", "Effect": "Allow", "Action": "ec2:CreateTags", "Resource": "*",
      "Condition": {"StringEquals": {"ec2:CreateAction": "RunInstances"}}},
     {"Sid": "TerminateSensorsOnly", "Effect": "Allow", "Action": "ec2:TerminateInstances", "Resource": "*",

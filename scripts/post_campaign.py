@@ -108,7 +108,22 @@ def main():
                AWS_REGIONS=a.regions)
     prog = Progress(a.end_utc)
     log(f"waiting until {end:%Y-%m-%d %H:%M}Z" + (f" (resuming; done: {', '.join(prog.done)})" if prog.done else ""))
+    first_stop, checked = None, 0.0
     while dt.datetime.utcnow() < end:
+        # the spending stop can end the campaign early: every region then leaves a stopped_<tag>.txt in S3
+        if a.s3_data and time.time() - checked > 600:
+            checked = time.time()
+            r = subprocess.run(["aws", "s3", "ls", a.s3_data], capture_output=True, text=True, env=env)
+            stopped = {line.split("stopped_", 1)[1].split("_")[0] for line in r.stdout.splitlines() if "stopped_" in line}
+            if stopped and first_stop is None:
+                first_stop = time.time()
+                log(f"spending stop reached in {', '.join(sorted(stopped))}")
+            if stopped >= set(regions) or (first_stop and time.time() - first_stop > 5400):
+                log("campaign ended early (spending stop); finishing now")
+                if os.name == "nt":  # keep the laptop awake while the finish runs
+                    subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-File",
+                                      os.path.join(ROOT, "scripts", "keep_awake.ps1"), "-Hours", "2"])
+                break
         time.sleep(30)
 
     py = a.python
@@ -116,7 +131,7 @@ def main():
         prog.step(f"stop remaining sensors in {r}", lambda r=r: run_net(
             f"stop remaining sensors in {r}", [py, "scripts/sensor_campaign.py", "--region", r, "--stop-only"], env=env))
     # wait for CloudTrail until end + N minutes: after a restart only the part of the wait that is left
-    ready = end + dt.timedelta(minutes=a.cloudtrail_wait_min)
+    ready = min(end, dt.datetime.utcnow()) + dt.timedelta(minutes=a.cloudtrail_wait_min)  # early stop: from now
     left = (ready - dt.datetime.utcnow()).total_seconds()
     if left > 0:
         log(f"waiting {left / 60:.0f} minutes for CloudTrail")

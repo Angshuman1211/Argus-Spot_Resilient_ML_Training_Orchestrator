@@ -37,12 +37,15 @@ if (Test-Path $pl) {
     }
 }
 
-if ($now -lt $end.AddHours(1) -and -not (Running "keep_awake")) {
+$cloud = ($s.mode -eq "cloud")  # the campaigns run on the cloud runner; this laptop only does the finish
+# a cloud campaign does not need this laptop awake, only its finish does: keep it awake for the last 12 hours
+# (after an early spending stop, post_campaign.py keeps it awake itself while it finishes)
+$needAwake = (-not $cloud) -or (($end - $now).TotalHours -lt 12)
+if ($needAwake -and $now -lt $end.AddHours(1) -and -not (Running "keep_awake")) {
     Say "starting keep-awake"
-    $h = [math]::Ceiling(($end - $now).TotalHours + 1)
+    $h = [math]::Ceiling([math]::Min(($end - $now).TotalHours + 1, 14))
     Start-Process powershell -WindowStyle Hidden -ArgumentList "-NoProfile","-WindowStyle","Hidden","-File","$root\scripts\keep_awake.ps1","-Hours","$h"
 }
-$cloud = ($s.mode -eq "cloud")  # the campaigns run on the cloud runner; this laptop only does the finish
 foreach ($p in $s.regions.PSObject.Properties) {
     $region = $p.Name; $tag = $p.Value
     if (-not $cloud -and $now -lt $end.AddMinutes(-10) -and -not (Running "sensor_campaign\.py.*--region $region\b")) {
