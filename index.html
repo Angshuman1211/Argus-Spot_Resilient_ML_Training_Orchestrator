@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argus Spot Orchestrator</title>
+<meta name="description" content="Argus keeps long ML training jobs alive on EC2 Spot instances, and a trace-driven study with real reclaims of when predicting interruptions beats checkpointing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  /* single reading column, wide figures break out; cool grey ground, deep teal accent */
+  --bg: #f6f8f8; --surface: #ffffff; --fg: #14201f; --muted: #52625f; --line: #d9e1df;
+  --accent: #0f6b66; --accent-soft: #e0f0ee; --warn: #9a5b00; --warn-soft: #fbf0dc;
+  --bad: #a3322b; --good: #1f7a45;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1615; --surface: #152120; --fg: #e4eceb; --muted: #9db0ad; --line: #28393a;
+  --accent: #5fc9c0; --accent-soft: #14312f; --warn: #e4b565; --warn-soft: #2e2512;
+  --bad: #ef8a82; --good: #76d49b; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1615; --surface: #152120; --fg: #e4eceb; --muted: #9db0ad; --line: #28393a;
+  --accent: #5fc9c0; --accent-soft: #14312f; --warn: #e4b565; --warn-soft: #2e2512;
+  --bad: #ef8a82; --good: #76d49b; color-scheme: dark; }
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6; padding-inline: 16px; padding-block: 0 64px; }
+a { color: var(--accent); }
+.wrap { max-width: 760px; margin-inline: auto; }
+.wide { max-width: 980px; margin-inline: auto; }
+header { padding-block: 56px 32px; }
+.kicker { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: clamp(32px, 6vw, 48px); line-height: 1.1; margin: 10px 0 14px; font-weight: 600; text-wrap: balance; letter-spacing: -.01em; }
+.lede { font-size: 19px; color: var(--muted); max-width: 62ch; margin: 0 0 20px; }
+.byline { font-size: 14px; color: var(--muted); margin: -6px 0 18px; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.links a { font-family: var(--font-mono); font-size: 13px; color: var(--accent); border: 1px solid var(--line); background: var(--surface); padding: 6px 12px; border-radius: 6px; text-decoration: none; }
+.links a:hover, .links a:focus-visible { border-color: var(--accent); outline: none; }
+h2 { font-size: 26px; font-weight: 600; margin: 56px 0 8px; text-wrap: balance; letter-spacing: -.005em; }
+h3 { font-size: 17px; margin: 28px 0 6px; font-weight: 600; }
+p { margin: 10px 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0 0; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.stat b { display: block; font-family: var(--font-mono); font-size: clamp(20px, 5vw, 26px); white-space: nowrap; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; color: var(--muted); }
+figure { margin: 22px 0; }
+figure img { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; max-width: 80ch; }
+.tablewrap { overflow-x: auto; margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { padding: 9px 14px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; white-space: normal; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td.bad { color: var(--bad); font-weight: 600; }
+td.good { color: var(--good); font-weight: 600; }
+.timeline { list-style: none; padding: 0; margin: 16px 0; border-left: 2px solid var(--line); }
+.timeline li { padding: 0 0 12px 18px; position: relative; font-size: 15px; }
+.timeline li::before { content: ""; position: absolute; left: -6px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.timeline time { font-family: var(--font-mono); font-size: 13px; color: var(--muted); display: block; }
+.note { background: var(--warn-soft); border-left: 3px solid var(--warn); padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 20px 0; max-width: 72ch; }
+.note b { color: var(--warn); }
+.answer { background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 14px 18px; border-radius: 0 8px 8px 0; margin: 24px 0; max-width: 72ch; }
+.answer p { margin: 6px 0; }
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 18px 0; }
+.pipeline div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.pipeline h3 { margin: 0 0 4px; color: var(--accent); }
+.pipeline p { margin: 0; font-size: 14px; color: var(--muted); }
+pre { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; font-family: var(--font-mono); font-size: 13px; line-height: 1.55; }
+code { font-family: var(--font-mono); font-size: .92em; }
+ul.tight { padding-left: 20px; max-width: 68ch; }
+ul.tight li { margin: 6px 0; }
+footer { margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+footer p { max-width: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="kicker">Spot-resilient ML training</div>
+  <h1>Argus</h1>
+  <p class="lede">EC2 Spot capacity is cheap, but AWS can reclaim it with two minutes of notice. Argus keeps long training jobs alive anyway: it checkpoints, moves the job and resumes it without anyone stepping in. We then asked when <em>predicting</em> reclaims actually beats simply checkpointing.</p>
+  <p class="byline">Angshuman Chakravertty and MD Rayyan, SVKM's NMIMS</p>
+  <div class="links">
+    <a href="https://arxiv.org/abs/2609.39067">Paper (arXiv)</a>
+    <a href="https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator/tree/week-9-v2-fixes-and-benchmark">Source code</a>
+    <a href="https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator/blob/week-9-v2-fixes-and-benchmark/docs/trace_benchmark_result.md">Benchmark write-up</a>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>14% vs 34%</b><span>extra time for model alarms vs the best periodic policy, 300 s checkpoints</span></div>
+    <div class="stat"><b>152</b><span>real Spot reclaims recorded by our own sensor fleet</span></div>
+    <div class="stat"><b>~1B</b><span>parameters, beyond which a checkpoint no longer fits the 2-minute notice</span></div>
+    <div class="stat"><b>2.1 s</b><span>flush acknowledged on real EKS before the job is moved</span></div>
+  </div>
+</header>
+
+<div class="answer">
+  <p><b>The short answer.</b> Reacting to AWS's two-minute notice is close to perfect while a checkpoint fits inside it. Once it does not, a good predictor beats the best periodic schedule by a wide margin. But our price-history model, excellent at predicting price spikes, has no skill on real reclaims, while AWS's own placement score does. Prediction pays when its signal is real.</p>
+</div>
+
+<h2>How Argus works</h2>
+<p>Three layers talk through narrow interfaces, so the training code needs no changes beyond saving and loading checkpoints.</p>
+<div class="pipeline">
+  <div><h3>Prediction</h3><p>Spot prices are collected every 5 minutes. Gradient-boosted trees score the chance of a price spike (<code>/predict</code>); a second model trained on real reclaims scores reclaim risk from AWS's placement score and the node's age (<code>/reclaim_risk</code>).</p></div>
+  <div><h3>Orchestration</h3><p>A Kubernetes operator polls the risk each minute. Above the threshold it asks the pod to flush a checkpoint, waits for the acknowledgement, cordons the node, and recreates the pod on healthy capacity.</p></div>
+  <div><h3>Training</h3><p>A PyTorch job polls for the flush request every 5 seconds, checkpoints to S3 on request or on SIGTERM, and resumes from the last saved epoch on its new node.</p></div>
+</div>
+</div>
+
+<div class="wide">
+<figure>
+  <img src="assets/fig1_architecture.png" width="982" height="722" alt="Architecture: Spot prices feed a shared feature module and a risk model behind a predict API; the operator polls it, writes a flush trigger, waits for confirmation, then cordons and deletes the pod; the training pod writes checkpoints to S3 and a replacement pod resumes. The reactive path is AWS's two-minute notice.">
+  <figcaption>Architecture. The predictive path (risk crosses the threshold) and the reactive path (AWS's two-minute warning, via the Node Termination Handler) end in the same flush, move and resume flow.</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<h2>When the two-minute notice is not enough</h2>
+<p>A checkpoint only helps if it finishes before the node disappears. We measured upload from EKS worker nodes to S3 in the same region at about 114 MB/s per node. Training state is about 12 bytes per parameter (weights plus two Adam moments), so:</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>Model</th><th>Parameters</th><th>Training state</th><th>Time to S3</th><th>Fits in 2 min?</th></tr></thead>
+  <tbody>
+  <tr><td>CIFAR-10 CNN (our testbed)</td><td>0.3 M</td><td>4 MB</td><td>under 1 s</td><td class="good">yes</td></tr>
+  <tr><td>ResNet-50</td><td>25.6 M</td><td>307 MB</td><td>3 s</td><td class="good">yes</td></tr>
+  <tr><td>BERT-large</td><td>340 M</td><td>4.1 GB</td><td>36 s</td><td class="good">yes</td></tr>
+  <tr><td>1.3B-parameter LLM</td><td>1.3 B</td><td>15.6 GB</td><td>136 s</td><td class="bad">no</td></tr>
+  <tr><td>7B-parameter LLM</td><td>7.0 B</td><td>84.0 GB</td><td>735 s</td><td class="bad">no</td></tr>
+  </tbody></table></div>
+
+<h2>Does prediction pay?</h2>
+<p>The benchmark replays the last nine days of real eu-north-1 Spot prices, and the model's own causal scores make every decision: it sees only what it could have seen at the time. The alarm threshold was chosen on a separate calibration slice. The job is synchronous on 15 nodes, so one interrupted node stops all of them. Slowdown against an ideal run (1.00 means nothing lost):</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>Policy (15 nodes)</th><th>10 s</th><th>60 s</th><th>300 s</th></tr></thead>
+  <tbody>
+  <tr><td>No protection</td><td>4.25</td><td>4.25</td><td>4.25</td></tr>
+  <tr><td>Reactive on the 2-minute notice</td><td class="good">1.02</td><td class="good">1.02</td><td class="bad">4.25</td></tr>
+  <tr><td>Periodic, every hour</td><td>1.36</td><td>1.38</td><td>1.47</td></tr>
+  <tr><td>Periodic, Young-Daly interval</td><td>1.06</td><td>1.14</td><td>1.34</td></tr>
+  <tr><td>Alarms from the original model</td><td>1.82</td><td>1.91</td><td class="bad">2.48</td></tr>
+  <tr><td>Alarms from the retrained model</td><td>1.06</td><td>1.07</td><td class="good">1.14</td></tr>
+  <tr><td>Oracle, 5 minutes of perfect warning</td><td>1.01</td><td>1.01</td><td>1.03</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="wide">
+<figure>
+  <img src="assets/fig2_overhead_vs_checkpoint.png" width="1102" height="691" alt="Extra time to finish against checkpoint time: reactive stays near 2% until 120 seconds then jumps above 300%; Young-Daly rises from 5% to about 55%; model alarms stay lowest beyond 10 seconds, about 14% at 300 seconds.">
+  <figcaption>Extra time to finish a 15-node job against checkpoint time. Shading is a 95% interval resampled by whole days. At 300 seconds the model's advantage over Young-Daly holds on every one of the eight test days.</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<ul class="tight">
+  <li>Reacting to the notice wins while a checkpoint fits inside it, and collapses to no protection once it does not.</li>
+  <li>With slow checkpoints, model alarms cut the extra time from 34% (Young-Daly) to 14%.</li>
+  <li>Predictor quality is what matters: the original model, at the same alarm budget, would have made jobs far slower.</li>
+  <li>Precision matters as much as recall. With 15 nodes and 300-second checkpoints, every false alarm is expensive.</li>
+</ul>
+
+<h2>Is the model really predicting?</h2>
+<p>AWS now updates Spot prices about once an hour, so every spike lands on the hour and a rule that only knows the clock already scores AUROC 0.88. We therefore also measure skill only among the hour-end windows where a spike is possible. Retrained on 100 times more data (768 price series, 8 regions), the model reaches AUROC 0.98 overall and 0.94 among hour-end windows, steady across seeds and five retraining dates. The original model, tested six months after training, had fallen to 0.70.</p>
+</div>
+<div class="wide">
+<figure>
+  <img src="assets/fig3_predictor.png" width="1337" height="662" alt="Bar chart of test AUROC: clock-only rule 0.88 overall and 0.50 among hour-end windows; old model 0.70; Transformer 0.87; boosted trees rising from 0.95 to 0.98 overall and 0.80 to 0.94 among hour-end windows as features are added.">
+  <figcaption>Test AUROC against controls, over all windows (left) and only the hour-end windows where a spike is possible (right).</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<h2>Real reclaims: the decisive test</h2>
+<p>The benchmark treats a price spike as an interruption. To check that, we needed real reclaims, which AWS does not publish. So we ran a fleet of small Spot "sensor" instances across eight instance types and four regions, replacing each reclaimed one and capping every instance at two hours. Of 315 instances, <b>152 were reclaimed</b>. How well does each signal anticipate a reclaim within 15 minutes?</p>
+<div class="tablewrap"><table>
+  <thead><tr><th>Predictor</th><th>AUROC</th><th>95% interval</th></tr></thead>
+  <tbody>
+  <tr><td>Price-history model (retrained)</td><td class="bad">0.53</td><td>0.47 to 0.60</td></tr>
+  <tr><td>AWS Spot placement score</td><td>0.74</td><td>0.69 to 0.80</td></tr>
+  <tr><td>Instance age, younger is riskier</td><td>0.75</td><td>0.67 to 0.80</td></tr>
+  <tr><td>Placement, age and price risk combined</td><td class="good">0.77</td><td>0.71 to 0.83</td></tr>
+  <tr><td>Reclaim rate of the pool in other hours</td><td class="good">0.85</td><td>0.81 to 0.89</td></tr>
+  <tr><td>Price spike in the next 15 min (not causal)</td><td>0.50</td><td>0.50 to 0.51</td></tr>
+  </tbody></table></div>
+<p>Price spikes do not coincide with real reclaims, and the price model has no skill on them. A placement-score-and-age model holds up on a held-out day (0.74), on pools it never saw (0.76) and on a region it never saw (0.77). Argus now serves it at <code>/reclaim_risk</code>, and the operator uses it when a job sets <code>riskSignal: capacity</code>.</p>
+<div class="note"><b>So what does the benchmark mean?</b> It is right about what it measures, but its gain holds only if reclaims follow price spikes, and in these regions they mostly did not. A deployed predictor should use capacity signals such as the placement score.</div>
+
+<h2>Running it on real EKS</h2>
+<h3>Reactive path: surviving a Spot drain</h3>
+<p>Training was at epoch 7 on a real Spot node when the interruption warning arrived.</p>
+<ul class="timeline">
+  <li><time>12:26:18 UTC</time>The Node Termination Handler receives the EC2 Spot Instance Interruption Warning.</li>
+  <li><time>12:26:19</time>The pod is evicted with a graceful SIGTERM; its handler writes the epoch-8 checkpoint to S3.</li>
+  <li><time>12:26:25</time>Node cordoned and drained, 10 seconds end to end.</li>
+  <li><time>about +75 s</time>A replacement pod on a healthy node logs "Resuming from epoch 8".</li>
+</ul>
+<h3>Predictive path: acting before the warning</h3>
+<p>With the retrained model served live on a three-node cluster, the operator saw the risk cross the threshold, asked the pod to flush, and got the acknowledgement after <b>2.1 seconds</b> for the small model and <b>34.3 seconds</b> for a 2 GB checkpoint. In both cases the replacement resumed from the full checkpoint, while a second job on another node ran undisturbed.</p>
+<p>The cluster run also found five defects that unit tests had missed: a flush confirmation that could never succeed with our IAM permissions, endless re-migration of a pool that stayed risky, a poll interval tied to batch time, a slow and fragile "atomic" upload, and a failed download that would have silently restarted training from scratch. All five are fixed.</p>
+</div>
+<div class="wide">
+<figure>
+  <img src="assets/real_s3_checkpoint.jpg" width="1400" height="779" loading="lazy" alt="Amazon S3 console showing the latest_checkpoint.pt object written during the drain.">
+  <figcaption>The checkpoint written to S3 during the reactive drill.</figcaption>
+</figure>
+</div>
+<div class="wrap">
+<div class="note"><b>Scope.</b> The reactive warning was injected into the handler's queue in AWS's exact event format, so the whole drain path ran, but the warning itself was not issued by AWS.</div>
+
+<h2>Other regions</h2>
+<p>Repeating the replay in the seven other regions, among the four with at least 20 events the model wins in two (eu-north-1 and ap-southeast-1), ties in two (us-east-1 and us-east-2), and never loses significantly. The other regions had too few events to separate any policies.</p>
+</div>
+<div class="wide">
+<figure>
+  <img src="assets/fig4_regions.png" width="1283" height="623" loading="lazy" alt="Overhead removed relative to Young-Daly by region with 95% intervals: eu-north-1 about 20 points, ap-southeast-1 about 7, us-east-2 and us-east-1 near zero; regions with fewer than 20 events in grey.">
+  <figcaption>Overhead removed relative to Young-Daly by region. Grey marks regions with fewer than 20 events.</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<h2>Observability</h2>
+<p>The operator exports its risk score and checkpoint counts to Prometheus, and a Grafana dashboard shows the risk crossing the threshold and the checkpoint firing at that moment.</p>
+</div>
+<div class="wide">
+<figure>
+  <img src="assets/grafana_dashboard.jpg" width="1600" height="896" loading="lazy" alt="Grafana dashboard with predicted risk crossing the threshold, checkpoints per minute and cumulative checkpoints.">
+  <figcaption>Grafana dashboard, recorded with a mock predictor and a 0.65 demo threshold. With the real calibrated models the thresholds are about 0.05 (price) and 0.16 (capacity).</figcaption>
+</figure>
+</div>
+
+<div class="wrap">
+<h2>Known limits</h2>
+<ul class="tight">
+  <li>The price model and the benchmark use price spikes as a stand-in for reclaims, and the real-reclaim test shows that stand-in is weak.</li>
+  <li>The real-label data covers two days of small instances in four regions; long-running training nodes may behave differently.</li>
+  <li>The benchmark record is nine days per region, and the simulator assumes the notice always arrives.</li>
+  <li>The operator manages each job's pod; it does not coordinate all nodes of one multi-node synchronous job.</li>
+</ul>
+
+<h2>Run it yourself</h2>
+<p>The local demo needs no AWS account. It starts the real prediction API, scores every instance and zone pair from a committed price snapshot, and prints the benchmark results.</p>
+<pre>git clone https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator
+cd Argus-Spot_Resilient_ML_Training_Orchestrator
+git checkout week-9-v2-fixes-and-benchmark
+pip install -r ml/api/requirements.txt pandas
+python demo/run_demo.py</pre>
+
+<footer>
+  <p>Argus is a project by Angshuman Chakravertty and MD Rayyan at SVKM's NMIMS, Hyderabad. Every number on this page comes from result files in the repository; the paper has the full method and intervals.</p>
+</footer>
+</div>
+
+</body>
+</html>
