@@ -1,17 +1,17 @@
 image:
-  repository: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/operator
+  # empty: <aws.accountId>.dkr.ecr.<aws.region>.amazonaws.com/argus/operator
+  repository: ""
   tag: latest
   pullPolicy: IfNotPresent
 
 operator:
   pollIntervalSeconds: 60
-  # 0.65 was the old default and never fires — the real model's calibrated risk
-  # scores top out around 0.0018 on held-out data (see docs/week7_model_evaluation.md),
-  # so 0.65 silently disabled the predictive path entirely. 0.0015 is the model's
-  # own best-F1 threshold (10.7% recall, 63 alarms on the test set) — tune lower
-  # for more recall at the cost of more checkpoint overhead, see the threshold
-  # table in that doc before changing this.
-  riskThreshold: 0.0015
+  # Score threshold on the calibrated risk from the prediction service. 0.05 is the 10% alarm
+  # budget for eu-north-1 on the calibration slice: alarm on roughly 10% of 5-minute steps, which
+  # the trace benchmark found best for large checkpoints (docs/trace_benchmark_result.md). Lower it
+  # for more recall and more checkpoints, raise it for fewer alarms. The old 0.65 and 0.0015
+  # defaults belonged to earlier models.
+  riskThreshold: 0.05
   predictServiceUrl: http://argus-predict-service:8000
 
 metrics:
@@ -19,13 +19,16 @@ metrics:
   port: 8080
 
 aws:
+  # The only account-specific setting: helm --set aws.accountId=<12-digit id>. The names below default
+  # to what terraform/ creates in that account; set them only to override.
+  accountId: ""
   region: eu-north-1
-  checkpointBucket: argus-checkpoints-844641713781
-  riskEventsQueueUrl: https://sqs.eu-north-1.amazonaws.com/844641713781/argus-risk-events
+  checkpointBucket: ""     # argus-checkpoints-<accountId>
+  riskEventsQueueUrl: ""   # https://sqs.<region>.amazonaws.com/<accountId>/argus-risk-events
 
 serviceAccount:
   name: argus-operator
-  irsaRoleArn: arn:aws:iam::844641713781:role/argus-operator-irsa
+  irsaRoleArn: ""          # arn:aws:iam::<accountId>:role/argus-operator-irsa
 
 resources:
   requests:

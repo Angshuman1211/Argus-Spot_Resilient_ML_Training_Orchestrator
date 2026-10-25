@@ -1,3 +1,4 @@
+# Account-specific: apply with  envsubst < k8s/predict-service.yaml | kubectl apply -f -   (see scripts/argus_env.sh)
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -15,7 +16,7 @@ spec:
     spec:
       containers:
         - name: predict-service
-          image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/predict-service:latest
+          image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/predict-service:latest
           imagePullPolicy: Always         # pull Person B's fixed :latest from ECR
           ports:
             - containerPort: 8000

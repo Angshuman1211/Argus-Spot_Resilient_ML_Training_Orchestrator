@@ -1,13 +1,12 @@
+# Account-specific: apply with  envsubst < demo/spotresilientjob.yaml | kubectl apply -f -   (see scripts/argus_env.sh)
 apiVersion: argus.io/v1
 kind: SpotResilientJob
 metadata:
   name: cifar10-test
   namespace: default
 spec:
-  image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
-  command: ["python", "train.py"]
-  checkpointPath: s3://argus-checkpoints-844641713781/checkpoints/cifar10-test
-  checkpointIntervalSteps: 500
+  image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
+  checkpointPath: s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/checkpoints/cifar10-test
   # NOTE: 0.65 only makes sense against the mock predictor's 0-1 output range
   # (used for the Week 7 dashboard demo, docs/A6_observability.md). Against the
   # REAL model, whose calibrated scores top out around 0.0018, this never fires -

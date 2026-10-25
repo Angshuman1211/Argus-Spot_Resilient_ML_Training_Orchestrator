@@ -11,32 +11,8 @@ import mlflow.pytorch
 from sklearn.metrics import average_precision_score
 from dataset import create_dataloaders
 from transformer import SpotInterruptionPredictor
+from losses import FocalLoss  # noqa: F401  (re-exported: tests and tune_focal_loss.py import it from here)
 from feature_config import FEATURE_COLUMNS, SEQ_LENGTH, PREDICTION_HORIZON
-
-class FocalLoss(nn.Module):
-    """
-    Spot interruptions are rare. If we use standard BCE loss, the model will
-    just output 0 (no interruption) every time and achieve 99% accuracy.
-    Focal loss forces the model to heavily penalize missing the rare disruptions.
-    """
-    def __init__(self, alpha=1.0, gamma=2.0):
-        super(FocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.bce_logit_loss = nn.BCEWithLogitsLoss(reduction='none')
-
-    def forward(self, inputs, targets):
-        bce_loss = self.bce_logit_loss(inputs, targets)
-        pt = torch.exp(-bce_loss)  # probability of the correct class
-        # alpha_t: alpha for positive targets, (1 - alpha) for negative ones. The old
-        # code applied self.alpha as a flat scalar to every sample regardless of its
-        # label - that's mathematically a no-op for class balance (equivalent to
-        # scaling the learning rate), not the "heavily penalize the rare class" effect
-        # the docstring above claims. This is the per-class weighting that actually
-        # does it.
-        alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
-        focal_loss = alpha_t * (1 - pt) ** self.gamma * bce_loss
-        return focal_loss.mean()
 
 def train_model(seed: int = None, output_dir: str = None, max_epochs: int = 25, run_name: str = None,
                  prediction_horizon: int = None, spike_threshold: float = 1.01, oversample: bool = False):

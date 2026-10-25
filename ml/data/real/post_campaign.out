@@ -1,0 +1,119 @@
+14:01:58Z waiting until 2026-10-14 14:01Z
+14:01:59Z START stop remaining sensors in eu-north-1: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe scripts/sensor_campaign.py --region eu-north-1 --stop-only
+14:02:01Z OK stop remaining sensors in eu-north-1
+eu-north-1: terminated 0 sensors
+14:02:01Z START stop remaining sensors in us-east-1: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe scripts/sensor_campaign.py --region us-east-1 --stop-only
+14:02:03Z OK stop remaining sensors in us-east-1
+us-east-1: terminated 0 sensors
+14:02:03Z START stop remaining sensors in us-east-2: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe scripts/sensor_campaign.py --region us-east-2 --stop-only
+14:02:05Z OK stop remaining sensors in us-east-2
+us-east-2: terminated 0 sensors
+14:02:06Z START stop remaining sensors in ap-southeast-1: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe scripts/sensor_campaign.py --region ap-southeast-1 --stop-only
+14:02:07Z OK stop remaining sensors in ap-southeast-1
+ap-southeast-1: terminated 0 sensors
+14:02:07Z waiting 20 minutes for CloudTrail
+14:22:07Z START sync campaign data from S3: aws s3 sync s3://argus-checkpoints-844641713781/campaign/data/ ml/data/real/
+14:22:12Z OK sync campaign data from S3
+Completed 306.4 KiB/879.5 KiB (103.1 KiB/s) with 4 file(s) remaining
+Completed 351.8 KiB/879.5 KiB (111.5 KiB/s) with 4 file(s) remaining
+download: s3://argus-checkpoints-844641713781/campaign/data/sensor_campaign_ap-southeast-1_20261014T055648Z.csv to ml\data\real\sensor_campaign_ap-southeast-1_20261014T055648Z.csv
+Completed 351.8 KiB/879.5 KiB (111.5 KiB/s) with 3 file(s) remaining
+Completed 504.1 KiB/879.5 KiB (157.9 KiB/s) with 3 file(s) remaining
+download: s3://argus-checkpoints-844641713781/campaign/data/placement_scores_ap-southeast-1_20261014T055648Z.csv to ml\data\real\placement_scores_ap-southeast-1_20261014T055648Z.csv
+Completed 504.1 KiB/879.5 KiB (157.9 KiB/s) with 2 file(s) remaining
+Completed 648.1 KiB/879.5 KiB (198.8 KiB/s) with 2 file(s) remaining
+download: s3://argus-checkpoints-844641713781/campaign/data/placement_scores_eu-north-1_20261014T055648Z.csv to ml\data\real\placement_scores_eu-north-1_20261014T055648Z.csv
+Completed 648.1 KiB/879.5 KiB (198.8 KiB/s) with 1 file(s) remaining
+Completed 879.5 KiB/879.5 KiB (265.4 KiB/s) with 1 file(s) remaining
+download: s3://argus-checkpoints-844641713781/campaign/data/placement_scores_us-east-1_20261014T055648Z.csv to ml\data\real\placement_scores_us-east-1_20261014T055648Z.csv
+14:22:12Z START pull reclaim labels: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/data/pull_reclaim_labels.py
+14:22:38Z OK pull reclaim labels
+i-0ef8a405ccbdb111d      us-east-2 2026-10-14 09:07:31+00:00      m5.large        us-east-2b      spot 2026-10-14 09:00:56+00:00            6.583333
+i-021621f98fa42c0b2      us-east-2 2026-10-14 09:08:27+00:00      m5.large        us-east-2a      spot 2026-10-14 08:19:26+00:00           49.016667
+i-05e26d4e58244fc15 ap-southeast-1 2026-10-14 09:11:49+00:00     m6i.large   ap-southeast-1c      spot 2026-10-14 08:56:46+00:00           15.050000
+i-086cdef879cdae6a2 ap-southeast-1 2026-10-14 09:20:31+00:00     r6i.large   ap-southeast-1b      spot 2026-10-14 09:14:49+00:00            5.700000
+i-0d9a000d642d04684     eu-north-1 2026-10-14 09:25:56+00:00      r5.large       eu-north-1b      spot 2026-10-14 08:28:51+00:00           57.083333
+i-0bde522b75e03068a ap-southeast-1 2026-10-14 09:30:40+00:00     r6i.large   ap-southeast-1b      spot 2026-10-14 09:23:15+00:00            7.416667
+i-0af7f9aa6d0d98140      us-east-1 2026-10-14 09:43:31+00:00     r6i.large        us-east-1a      spot 2026-10-14 08:03:09+00:00          100.366667
+i-08e71d2f9c28a6035      us-east-1 2026-10-14 09:49:15+00:00     c6i.large        us-east-1b      spot 2026-10-14 09:27:01+00:00           22.233333
+i-03c88fbadcd275c0b     eu-north-1 2026-10-14 09:52:49+00:00     m6i.large       eu-north-1b      spot 2026-10-14 09:26:18+00:00           26.516667
+i-097c42258ccb9f027      us-east-2 2026-10-14 09:54:02+00:00     m6i.large        us-east-2a      spot 2026-10-14 08:11:08+00:00          102.900000
+i-093a0a19a009f389e     eu-north-1 2026-10-14 10:03:25+00:00     m6i.large       eu-north-1a      spot 2026-10-14 09:09:53+00:00           53.533333
+i-09de6ad377f2a7127      us-east-2 2026-10-14 10:52:52+00:00      m5.large        us-east-2c      spot 2026-10-14 09:09:45+00:00          103.116667
+14:22:39Z START pull spot signals (rebalance recommendations): C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/data/pull_spot_signals.py
+14:22:56Z OK pull spot signals (rebalance recommendations)
+eu-north-1: 8 signal events
+us-east-1: 5 signal events
+us-east-2: 13 signal events
+ap-southeast-1: 8 signal events
+34 signals in F:\Argus_boto3\ml\data\real\spot_signals.csv: {'rebalance': 20, 'interruption': 14}
+14:22:56Z START evaluate against real reclaims: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/model/evaluate_real_reclaims.py
+14:23:47Z OK evaluate against real reclaims
+  placement score            0.805   [0.759, 0.845]
+  instance age (control)     0.731   [0.693, 0.779]
+  pool prior                 0.875   [0.832, 0.905]
+  proxy spike (future)       0.500   [0.500, 0.500]
+  learned (cv by hour)       0.809   [0.746, 0.866]
+  rebalance recommendation   0.870   [0.870, 0.870]
+
+region            inst  recl  steps  pos  price  placemen  instance  pool  proxy  learned  rebalanc
+ap-southeast-1      42    13    733   21     0.564     0.716     0.765     0.737     0.496     0.752     0.533
+eu-north-1         190   112   2225  156     0.544     0.791     0.787     0.902     0.499     0.822     0.650
+us-east-1           40    11    763   22     0.439     0.581     0.633     0.676     0.523     0.618     0.979
+us-east-2           43    16    766   30     0.482     0.590     0.591     0.721     0.498     0.622     0.580
+14:23:47Z START train real-label model: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe ml/model/train_real_label_model.py
+14:24:40Z OK train real-label model
+forward_day placement score alone                 0.682   [0.649, 0.745]
+forward_day price model alone                     0.503   [0.405, 0.584]
+forward_day instance age alone                    0.709   [0.613, 0.765]
+by_region   placement (logistic)                  0.710   [0.665, 0.772]
+by_region   placement+age (logistic)              0.767   [0.709, 0.830]
+by_region   placement+age (boosted)               0.747   [0.704, 0.798]
+by_region   placement+age+price (logistic)        0.763   [0.706, 0.829]
+by_region   placement+age+price (boosted)         0.749   [0.698, 0.803]
+by_region   price only (logistic)                 0.379   [0.347, 0.425]
+by_region   placement score alone                 0.738   [0.693, 0.794]
+by_region   price model alone                     0.535   [0.466, 0.604]
+by_region   instance age alone                    0.744   [0.671, 0.801]
+14:24:40Z START paper numbers: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe Paper/v2/build_numbers.py
+14:24:41Z OK paper numbers
+wrote 205 macros
+14:24:41Z START paper tables: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe Paper/v2/build_tables.py
+14:24:42Z OK paper tables
+tables written to F:\Argus_boto3\Paper\v2\tables | measured S3 rate used: 114 MB/s
+14:24:42Z START paper figures: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\gpuenv\Scripts\python.exe Paper/v2/make_figures.py
+14:24:47Z OK paper figures
+wrote figures to F:\Argus_boto3\Paper\v2\Figures
+14:24:47Z START compile paper: C:\Users\rayya\AppData\Local\Temp\claude\f--Argus-boto3\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\scratchpad\tectonic_bin\tectonic.exe -X compile argus_v2.tex
+14:24:53Z OK compile paper
+warning: argus_v2.bbl:33: Underfull \hbox (badness 5985) in paragraph at lines 28--33
+warning: argus_v2.bbl:33: Underfull \hbox (badness 6944) in paragraph at lines 28--33
+warning: argus_v2.tex:217: Underfull \vbox (badness 1226) has occurred while \output is active
+warning: argus_v2.tex:105: Underfull \vbox (badness 3219) has occurred while \output is active
+warning: argus_v2.bbl:19: Underfull \hbox (badness 2635) in paragraph at lines 14--19
+warning: argus_v2.bbl:33: Underfull \hbox (badness 5985) in paragraph at lines 28--33
+warning: argus_v2.bbl:33: Underfull \hbox (badness 6944) in paragraph at lines 28--33
+warning: argus_v2.tex:105: Underfull \vbox (badness 3219) has occurred while \output is active
+warning: argus_v2.bbl:19: Underfull \hbox (badness 2635) in paragraph at lines 14--19
+warning: argus_v2.bbl:33: Underfull \hbox (badness 5985) in paragraph at lines 28--33
+warning: argus_v2.bbl:33: Underfull \hbox (badness 6944) in paragraph at lines 28--33
+warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
+14:24:53Z START stage results: git add -f Paper/v2 ml/data/real ml/model/wide_results ml/model/final
+14:24:53Z OK stage results
+warning: in the working copy of 'ml/data/real/campaign_ap-southeast-1_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_ap-southeast-1_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_eu-north-1_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_eu-north-1_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-1_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-1_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-2_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-2_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+14:24:55Z START commit: git commit -q -m real reclaim results, 4 regions, real-label model
+14:24:57Z OK commit
+
+14:24:57Z START push: git push -q
+14:25:04Z OK push
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator.git
+14:25:04Z ALL STEPS OK
+14:25:12Z DONE

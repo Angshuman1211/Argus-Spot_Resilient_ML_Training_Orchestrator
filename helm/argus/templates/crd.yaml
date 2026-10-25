@@ -14,30 +14,32 @@ spec:
           properties:
             spec:
               type: object
-              required: [image, command, checkpointPath, riskThreshold, instanceFallback]
+              required: [image, checkpointPath, riskThreshold, instanceFallback]
               properties:
                 image:
                   type: string
                   description: Docker image for the training job
-                command:
-                  type: array
-                  items:
-                    type: string
-                  description: Command to run inside the container
                 checkpointPath:
                   type: string
                   pattern: "^s3://.+"
                   description: S3 URI where training job saves checkpoints (no trailing slash)
-                checkpointIntervalSteps:
-                  type: integer
-                  minimum: 1
-                  default: 500
-                  description: Training job saves a checkpoint every N steps
                 riskThreshold:
                   type: number
                   minimum: 0.0
                   maximum: 1.0
-                  description: Operator triggers checkpoint+migrate when risk_score exceeds this
+                  description: Operator triggers checkpoint+migrate when the risk (see riskSignal) exceeds this
+                riskSignal:
+                  type: string
+                  enum: [price, capacity]
+                  default: price
+                  description: >-
+                    price = /predict, the price-spike model (threshold about 0.05 for a 10% alarm budget).
+                    capacity = /reclaim_risk, the model trained on real reclaims from the AWS placement score and
+                    the node's age (threshold about 0.16 for a 10% alarm budget)
+                availabilityZone:
+                  type: string
+                  default: eu-north-1a
+                  description: AZ passed to the prediction service
                 instanceFallback:
                   type: array
                   minItems: 1
@@ -52,10 +54,29 @@ spec:
                   description: Most recent risk score from the prediction service
                 lastCheckpointStep:
                   type: integer
-                  description: Training step at which the last checkpoint was flushed
+                  description: Number of checkpoint triggers issued by the operator
+                lastMigrationAt:
+                  type: number
+                  description: Unix time of the last completed migration, used for the cooldown
+                retryCount:
+                  type: integer
+                  description: Consecutive Failed to Running retries
+                cordonedNode:
+                  type: string
+                  nullable: true
+                  description: Node this operator cordoned and has not yet released
+                cordonedAt:
+                  type: number
+                  nullable: true
+                  description: Unix time of the cordon
+                podSnapshot:
+                  type: object
+                  nullable: true
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: Cleaned manifest of the training pod, used to recreate it after a migration
                 phase:
                   type: string
-                  enum: [Pending, Running, Checkpointing, Migrating, Completed, Failed]
+                  enum: [Pending, Running, Checkpointing, Migrating, Succeeded, Completed, Failed]
                   description: Current lifecycle phase of the job
       subresources:
         status: {}

@@ -25,9 +25,10 @@ TF_DIR="$PROJECT_ROOT/terraform"
 # ---- config (matches helm/argus/values.yaml + terraform) ----
 REGION="eu-north-1"
 CLUSTER="argus-eks"
-REGISTRY="844641713781.dkr.ecr.eu-north-1.amazonaws.com"
+. "$SCRIPT_DIR/../scripts/argus_env.sh"
+REGISTRY="$ARGUS_REGISTRY"
 OPERATOR_REPO="argus/operator"
-CHECKPOINT_BUCKET="argus-checkpoints-844641713781"
+CHECKPOINT_BUCKET="$ARGUS_CKPT_BUCKET"
 HELM_RELEASE="argus"
 NAMESPACE="default"
 SPOT_NODES=2   # 2 needed: reschedule deletes the pod so it must land on a *second* node
@@ -73,8 +74,8 @@ cmd_deploy() {
     --namespace "$NAMESPACE" --wait --timeout 5m
 
   log "Deploying predict-service + the SpotResilientJob"
-  kubectl apply -f "$PROJECT_ROOT/k8s/predict-service.yaml"
-  kubectl apply -f "$PROJECT_ROOT/demo/spotresilientjob.yaml"
+  envsubst < "$PROJECT_ROOT/k8s/predict-service.yaml" | kubectl apply -f -
+  envsubst < "$PROJECT_ROOT/demo/spotresilientjob.yaml" | kubectl apply -f -
   kubectl get pods -w &
   WATCH_PID=$!
   sleep 20 && kill "$WATCH_PID" 2>/dev/null || true

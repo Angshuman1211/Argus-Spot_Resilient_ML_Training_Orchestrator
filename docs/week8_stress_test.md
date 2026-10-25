@@ -24,12 +24,13 @@ itself — CPU contention, checkpoint I/O contention — degrades behavior.
 | Mean makespan (completed jobs) | 243.8s | 232.2s |
 | Total wasted compute | 0.0s | 0.0s |
 
-**Wall-clock speedup from running concurrently: ~5x** — close to the
-theoretical parallelism ceiling for 3 jobs, confirming they really did run
-in parallel rather than serializing on some shared resource.
+**Do not quote a speedup from this table.** Wall clock was 278.7 s concurrent vs 1391.0 s sequential
+(about 5x), but 3 parallel jobs cap the speedup at 3x, and the sequential run includes one job that timed out
+and sat until its wall-clock deadline. The 5x is that timeout, not parallelism. With n=3 per condition this test
+supports only the weaker statements below.
 
-**Per-job makespan increased ~5% under concurrency** (243.8s vs 232.2s) —
-a real but small CPU-contention cost, not a meaningful degradation.
+**Per-job makespan increased about 5% under concurrency** (243.8 s vs 232.2 s), a small CPU-contention cost
+on 2 completed sequential jobs against 3 concurrent ones. Not a meaningful degradation, and not a tight estimate.
 
 **No cross-job interference of any kind**: every job's checkpoint count,
 trigger files, and completion were independent — nothing suggests one job's

@@ -13,6 +13,27 @@ OD_PRICES = {
     "g4dn.xlarge": 0.605,
 }
 
+def normalize_raw_prices(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Accepts raw prices from either source and returns one schema.
+
+    fetch_spot_prices.py writes `availability_zone` / `product_desc`; the Lambda price
+    collector (docs/A2_lambda_pipeline.md) writes `az` / `product`. Types without a known
+    On-Demand price are dropped with a warning: the normalized_ratio feature would
+    otherwise divide by a made-up default and silently feed the model a wrong value.
+    """
+    df = df.rename(columns={"az": "availability_zone", "product": "product_desc"})
+    missing = {"timestamp", "instance_type", "availability_zone", "spot_price"} - set(df.columns)
+    if missing:
+        raise ValueError(f"raw prices are missing columns: {sorted(missing)}")
+    df = df.drop_duplicates(["timestamp", "instance_type", "availability_zone"])
+    unknown = sorted(set(df["instance_type"]) - set(OD_PRICES))
+    if unknown:
+        print(f"WARNING: dropping instance types with no On-Demand price in OD_PRICES: {unknown}")
+        df = df[df["instance_type"].isin(OD_PRICES)]
+    return df
+
+
 def process_ts_group(group: pd.DataFrame) -> pd.DataFrame:
     """
     Takes raw spot prices for a specific instance type + AZ, 
@@ -47,7 +68,7 @@ def process_ts_group(group: pd.DataFrame) -> pd.DataFrame:
     group["rolling_std_6h"]   = group["spot_price"].rolling(window=72, min_periods=1).std().fillna(0)
     
     # 4. Normalized ratio relative to On-Demand price
-    od_price = OD_PRICES.get(instance_type, 1.0)
+    od_price = OD_PRICES[instance_type]
     group["normalized_ratio"] = group["spot_price"] / od_price
     
     # 5. Temporal encodings (Cyclical time features using Sine/Cosine)
@@ -84,7 +105,7 @@ def load_interruption_rates(labels_dir: str, region: str = "eu-north-1", os_name
 
 def build_features(input_csv: str, output_csv: str, labels_dir: str = None):
     print(f"Loading raw data from {input_csv}...")
-    df = pd.read_csv(input_csv, parse_dates=["timestamp"])
+    df = normalize_raw_prices(pd.read_csv(input_csv, parse_dates=["timestamp"]))
     
     print("Generating feature matrix...")
     processed_groups = []

@@ -20,7 +20,7 @@ spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
         - name: operator
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ include "argus.image" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["python", "-m", "controller.main"]
           ports:
@@ -32,9 +32,9 @@ spec:
             - name: AWS_DEFAULT_REGION
               value: {{ .Values.aws.region }}
             - name: CHECKPOINT_BUCKET
-              value: {{ .Values.aws.checkpointBucket }}
+              value: {{ include "argus.checkpointBucket" . }}
             - name: RISK_EVENTS_QUEUE_URL
-              value: {{ .Values.aws.riskEventsQueueUrl }}
+              value: {{ include "argus.riskEventsQueueUrl" . }}
             - name: PREDICT_SERVICE_URL
               value: {{ .Values.operator.predictServiceUrl }}
             - name: POLL_INTERVAL_SECONDS

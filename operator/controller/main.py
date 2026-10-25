@@ -19,7 +19,7 @@ from controller.metrics import start_metrics_server
 def main():
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s â€” %(message)s",
+        format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         stream=sys.stdout,
     )
     # Start Prometheus metrics server

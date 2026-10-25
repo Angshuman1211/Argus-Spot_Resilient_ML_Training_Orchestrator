@@ -6,7 +6,10 @@ REM Usage: scripts\push_training_job.bat [tag]
 setlocal
 
 set REGION=eu-north-1
-set ACCOUNT=844641713781
+REM Account: ARGUS_ACCOUNT_ID if set, else whoever the AWS CLI is logged in as
+if "%ARGUS_ACCOUNT_ID%"=="" for /f %%i in ('aws sts get-caller-identity --query Account --output text') do set ARGUS_ACCOUNT_ID=%%i
+if "%ARGUS_ACCOUNT_ID%"=="" goto :error
+set ACCOUNT=%ARGUS_ACCOUNT_ID%
 set REPO=argus/training-job
 set TAG=%1
 if "%TAG%"=="" set TAG=latest

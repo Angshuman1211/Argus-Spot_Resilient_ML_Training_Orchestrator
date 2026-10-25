@@ -10,9 +10,9 @@ training pods ahead of a Spot interruption. Works against **minikube**
 - A cluster (`minikube start`, or a live EKS cluster — see `terraform/`)
 - `kubectl` pointed at that cluster
 - `helm` 3.x
-- Images already built and pushed to ECR (`scripts/build_and_push_all.sh`) —
-  the chart references `844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/operator:latest`
-  by default (`values.yaml`)
+- Images already built and pushed to ECR (`scripts/push_operator.sh`). The chart
+  derives the image, bucket, queue and IRSA role from one value, `aws.accountId`
+  (`<accountId>.dkr.ecr.<region>.amazonaws.com/argus/operator:latest` by default)
 - On EKS: the `argus-operator-irsa` IAM role must already exist (Terraform
   output) — the chart's ServiceAccount annotates itself with that role's ARN
   for AWS access (S3 checkpoints, SQS risk events), no static credentials.
@@ -22,7 +22,7 @@ training pods ahead of a Spot interruption. Works against **minikube**
 ## Install
 
 ```bash
-helm upgrade --install argus ./helm/argus --namespace default
+helm upgrade --install argus ./helm/argus --namespace default \n  --set aws.accountId=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 This deploys, in one release: the `spotresilientjobs.argus.io` CRD, the
@@ -43,13 +43,13 @@ The operator calls out to this over HTTP (`operator.predictServiceUrl` in
 manifest, not part of this chart:
 
 ```bash
-kubectl apply -f k8s/predict-service.yaml
+envsubst < k8s/predict-service.yaml | kubectl apply -f -
 ```
 
 ## Deploy a training job
 
 ```bash
-kubectl apply -f demo/spotresilientjob.yaml
+envsubst < demo/spotresilientjob.yaml | kubectl apply -f -
 kubectl get spotresilientjob   # shortname: srj
 ```
 
@@ -62,13 +62,12 @@ different scales are in play depending on which prediction service you point
 
 | Predict service | Real output range | Threshold that actually fires |
 |---|---|---|
-| Real model (`ml/api/app.py`) | ~0.0001 – 0.0018 (calibrated) | **~0.0015** (the model's own best-F1 point — see `docs/week7_model_evaluation.md`) |
+| Real model (`ml/api/app.py`, gradient boosting) | 0 – 1 (calibrated probability of a >1% price rise within 15 min) | **~0.05** (10% alarm budget for eu-north-1, chosen on the calibration slice: `docs/trace_benchmark_result.md`, `/model` endpoint) |
 | Mock predictor (`demo/mock-predict.yaml`, used for the Week 7 dashboard demo) | 0.15 → 0.90 ramp | 0.65 (the historical default, still correct for this case) |
 
 `demo/spotresilientjob.yaml` ships with `riskThreshold: 0.65` because it was
 built for the mock-predictor demo. **If you point it at the real model
-instead, change this to ~0.0015 or the predictive path will silently never
-trigger** — this was true of every deployment before Week 7 and went
+instead, change this to ~0.05, otherwise the predictive path will fire on every poll** — this was true of every deployment before Week 7 and went
 unnoticed because the dashboard demo (which looks fine) used the mock, not
 the real model. Don't copy `0.65` into a new job spec without checking which
 predict service it's actually talking to.

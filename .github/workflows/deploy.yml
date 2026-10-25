@@ -2,20 +2,27 @@ name: Build and Deploy Operator
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "operator/**"
       - "helm/**"
 
 env:
   AWS_REGION: eu-north-1
-  ECR_REGISTRY: 844641713781.dkr.ecr.eu-north-1.amazonaws.com
+  # Repository variable AWS_ACCOUNT_ID (Settings > Secrets and variables > Actions > Variables)
+  AWS_ACCOUNT_ID: ${{ vars.AWS_ACCOUNT_ID }}
+  ECR_REGISTRY: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.eu-north-1.amazonaws.com
   ECR_REPOSITORY: argus/operator
   EKS_CLUSTER: argus-eks
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # OIDC: GitHub proves who it is and AWS hands back short-lived credentials. The role (created by
+    # scripts/setup_github_oidc.sh) can be assumed only by workflows on this repo's master branch.
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Checkout
@@ -24,8 +31,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/argus-github-actions
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to ECR
@@ -69,5 +75,6 @@ jobs:
         run: |
           helm upgrade --install argus ./helm/argus \
             --namespace default \
+            --set aws.accountId=$AWS_ACCOUNT_ID \
             --set image.tag=$IMAGE_TAG \
             --wait --timeout 5m

@@ -1,0 +1,12 @@
+# SpotResilientJob for one drill job (see scripts/eks_predictive_drill.sh).
+apiVersion: argus.io/v1
+kind: SpotResilientJob
+metadata:
+  name: ${NAME}
+  namespace: default
+spec:
+  image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:v2
+  checkpointPath: s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/checkpoints/${NAME}
+  riskThreshold: ${THRESHOLD}
+  availabilityZone: eu-north-1a
+  instanceFallback: ["m5.xlarge", "c5.xlarge"]

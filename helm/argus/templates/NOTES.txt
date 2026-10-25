@@ -12,9 +12,9 @@ Current riskThreshold default: {{ .Values.operator.riskThreshold }}
   IMPORTANT: every SpotResilientJob must set its own riskThreshold (the CRD
   requires it) - this chart's value is only a fallback for jobs that somehow
   skip that field. If PREDICT_SERVICE_URL points at the real model, use a
-  threshold near its own calibrated score range (~0.0015, see
-  docs/week7_model_evaluation.md) - the old 0.65 placeholder never fires
-  against real model output. Against the mock predictor
+  threshold near its own calibrated operating point (~0.05, see
+  docs/trace_benchmark_result.md and the /model endpoint) - the old 0.65
+  placeholder rarely fires against real model output. Against the mock predictor
   (controller.mock_predict, 0-1 range), 0.65 is fine.
 
 Deploy a job:

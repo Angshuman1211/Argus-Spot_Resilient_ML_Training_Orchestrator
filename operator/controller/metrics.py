@@ -12,6 +12,16 @@ job_completion_count = Counter(
     "argus_jobs_completed_total", "Total jobs successfully completed", ["job_name"]
 )
 
+checkpoint_wait_timeouts = Counter(
+    "argus_checkpoint_wait_timeouts_total",
+    "Migrations started without a confirmed checkpoint flush", ["job_name"]
+)
+
+predict_failures = Counter(
+    "argus_predict_failures_total",
+    "Polls of the prediction service that failed", ["job_name"]
+)
+
 def start_metrics_server():
     port = int(os.environ.get("METRICS_PORT", 8080))
     start_http_server(port)
