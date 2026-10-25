@@ -41,7 +41,9 @@ def main():
     json.dump(state, open(state_path, "w", encoding="utf-8"), indent=1)
 
     s3.upload_file(os.path.join(ROOT, "scripts", "sensor_campaign.py"), bucket, "campaign/code/sensor_campaign.py")
-    s3.upload_file(os.path.join(ROOT, "scripts", "cloud_runner_boot.sh"), bucket, "campaign/code/cloud_runner_boot.sh")
+    # a shell script with Windows line endings does not run on the Linux runner: always upload it with LF endings
+    with open(os.path.join(ROOT, "scripts", "cloud_runner_boot.sh"), "rb") as f:
+        s3.put_object(Bucket=bucket, Key="campaign/code/cloud_runner_boot.sh", Body=f.read().replace(b"\r\n", b"\n"))
     s3.upload_file(state_path, bucket, "campaign/state.json")
     n = 0
     for tag in state["regions"].values():
