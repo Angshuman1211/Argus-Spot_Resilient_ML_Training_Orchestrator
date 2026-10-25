@@ -1,0 +1,16 @@
+﻿{
+    "end_utc":  "2026-10-14T14:01",
+    "profile":  "argus-sensor",
+    "python":  "C:\\Users\\rayya\\AppData\\Local\\Temp\\claude\\f--Argus-boto3\\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\\scratchpad\\gpuenv\\Scripts\\python.exe",
+    "tectonic":  "C:\\Users\\rayya\\AppData\\Local\\Temp\\claude\\f--Argus-boto3\\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\\scratchpad\\tectonic_bin\\tectonic.exe",
+    "per_pool":  2,
+    "max_launches":  600,
+    "regions":  {
+                    "eu-north-1":  "eu-north-1_20261014T055648Z",
+                    "us-east-1":  "us-east-1_20261014T055648Z",
+                    "us-east-2":  "us-east-2_20261014T055648Z",
+                    "ap-southeast-1":  "ap-southeast-1_20261014T055648Z"
+                },
+    "mode":  "cloud",
+    "bucket":  "argus-checkpoints-844641713781"
+}
