@@ -11,12 +11,15 @@ RUN pip install --no-cache-dir --default-timeout 120 --retries 10 -r requirement
 # No torch, scikit-learn, or baked-in features.csv: prices are fetched live (PRICE_SOURCE).
 COPY ml/model/spot_features.py /app/model/spot_features.py
 COPY ml/model/final /app/model/final
-COPY ml/api/app.py ml/api/predictor.py ml/api/price_source.py /app/api/
+COPY ml/api/app.py ml/api/predictor.py ml/api/price_source.py ml/api/capacity.py /app/api/
 
 ENV MODEL_DIR=/app/model/final
 # PRICE_SOURCE=ec2 (default, needs ec2:DescribeSpotPriceHistory), s3 (needs FEATURE_STORE_BUCKET),
 # or csv (needs PRICE_CSV, e.g. a snapshot mounted or baked in for a demo).
 ENV PRICE_SOURCE=ec2
+# /reclaim_risk: PLACEMENT_SOURCE=ec2 (needs ec2:GetSpotPlacementScores, ec2:DescribeAvailabilityZones)
+# or none (the caller passes placement_score).
+ENV PLACEMENT_SOURCE=none
 
 EXPOSE 8000
 

@@ -131,9 +131,23 @@ def main():
     feats = FEATURE_SETS["placement+age"]
     sc = StandardScaler().fit(d[feats])
     lr = LogisticRegression(C=1.0, max_iter=2000).fit(sc.transform(d[feats]), d.label)
+    # the serving side clamps inputs to the range seen here rather than extrapolate (placement only took 1 to 3)
+    ranges = {f: [float(d[f].min()), float(d[f].max())] for f in feats}
+    # thresholds for a few alarm budgets (share of steps alarmed), in-sample: two features, little room to overfit
+    p_all = lr.predict_proba(sc.transform(d[feats]))[:, 1]
+    ops = []
+    for budget in (0.05, 0.10, 0.20):
+        thr = float(np.quantile(p_all, 1 - budget))
+        hit = p_all > thr
+        ops.append(dict(alarm_budget=budget, threshold=round(thr, 4), alarm_rate=round(float(hit.mean()), 4),
+                        recall=round(float(d.label[hit].sum() / d.label.sum()), 3),
+                        precision=round(float(d.label[hit].mean()), 3)))
     model = dict(features=feats, mean=sc.mean_.tolist(), scale=sc.scale_.tolist(), coef=lr.coef_[0].tolist(),
-                 intercept=float(lr.intercept_[0]), trained_on=dict(steps=len(d), positives=int(d.label.sum())),
-                 note="P(reclaim within 15 min | AWS placement score, instance age in minutes), eu-north-1 sensor data")
+                 intercept=float(lr.intercept_[0]), ranges=ranges, operating_points=ops,
+                 trained_on=dict(steps=len(d), positives=int(d.label.sum()), regions=sorted(d.region.unique()),
+                                 days=sorted(str(x) for x in d.day.unique())),
+                 note="P(reclaim within 15 min | AWS placement score, instance age in minutes), sensor campaign "
+                      "13-14 Oct 2026; small instances only, see docs/wide_model_result.md Section 7b")
     os.makedirs(os.path.join(HERE, "final"), exist_ok=True)
     json.dump(model, open(os.path.join(HERE, "final", "capacity_model.json"), "w"), indent=1)
     json.dump(out, open(os.path.join(W, "real_label_model.json"), "w"), indent=1, default=float)

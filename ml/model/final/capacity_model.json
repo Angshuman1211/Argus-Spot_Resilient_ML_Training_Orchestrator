@@ -16,9 +16,52 @@
   -0.6873731708698393
  ],
  "intercept": -3.567268398392081,
+ "ranges": {
+  "placement": [
+   1.0,
+   3.0
+  ],
+  "age_min": [
+   0.0034346833333333,
+   120.93333333333334
+  ]
+ },
+ "operating_points": [
+  {
+   "alarm_budget": 0.05,
+   "threshold": 0.2658,
+   "alarm_rate": 0.0501,
+   "recall": 0.436,
+   "precision": 0.438
+  },
+  {
+   "alarm_budget": 0.1,
+   "threshold": 0.1581,
+   "alarm_rate": 0.1001,
+   "recall": 0.56,
+   "precision": 0.281
+  },
+  {
+   "alarm_budget": 0.2,
+   "threshold": 0.0507,
+   "alarm_rate": 0.2,
+   "recall": 0.644,
+   "precision": 0.162
+  }
+ ],
  "trained_on": {
   "steps": 4474,
-  "positives": 225
+  "positives": 225,
+  "regions": [
+   "ap-southeast-1",
+   "eu-north-1",
+   "us-east-1",
+   "us-east-2"
+  ],
+  "days": [
+   "2026-10-13",
+   "2026-10-14"
+  ]
  },
- "note": "P(reclaim within 15 min | AWS placement score, instance age in minutes), eu-north-1 sensor data"
+ "note": "P(reclaim within 15 min | AWS placement score, instance age in minutes), sensor campaign 13-14 Oct 2026; small instances only, see docs/wide_model_result.md Section 7b"
 }
