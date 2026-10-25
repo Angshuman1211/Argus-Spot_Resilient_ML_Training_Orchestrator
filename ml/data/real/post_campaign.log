@@ -193,3 +193,21 @@ warning: argus_v2.bbl:33: Underfull \hbox (badness 5985) in paragraph at lines 2
 warning: argus_v2.bbl:33: Underfull \hbox (badness 6944) in paragraph at lines 28--33
 warning: warnings were issued by the TeX engine; use --print and/or --keep-logs for details.
 14:24:53Z START stage results: git add -f Paper/v2 ml/data/real ml/model/wide_results ml/model/final
+14:24:53Z OK stage results
+warning: in the working copy of 'ml/data/real/campaign_ap-southeast-1_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_ap-southeast-1_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_eu-north-1_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_eu-north-1_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-1_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-1_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-2_20261014T055648Z.err', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'ml/data/real/campaign_us-east-2_20261014T055648Z.log', LF will be replaced by CRLF the next time Git touches it
+14:24:55Z START commit: git commit -q -m real reclaim results, 4 regions, real-label model
+14:24:57Z OK commit
+
+14:24:57Z START push: git push -q
+14:25:04Z OK push
+remote: This repository moved. Please use the new location:        
+remote:   https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator.git
+14:25:04Z ALL STEPS OK
+14:25:12Z DONE
