@@ -8,7 +8,7 @@
 
 A three-layer system that predicts EC2 Spot interruptions and automatically checkpoints + migrates running ML training jobs, with no human in the loop. Both the reactive path (AWS's 2-minute notice) and the predictive path (operator acts on a risk score) run end to end on real AWS EKS. The predictor is evaluated in a trace-driven benchmark and against 152 real Spot reclaims.
 
-**Paper:** [arxiv.org/abs/2609.39067](https://arxiv.org/abs/2609.39067) (*When Does Predicting Spot Interruptions Beat Checkpointing? A Trace-Driven Study with Real Reclaims*). To see it run locally: `python demo/run_demo.py`.
+**Project page:** [angshuman1211.github.io/Argus-Spot_Resilient_ML_Training_Orchestrator](https://angshuman1211.github.io/Argus-Spot_Resilient_ML_Training_Orchestrator/) · **Paper:** [arxiv.org/abs/2609.39067](https://arxiv.org/abs/2609.39067) (*When Does Predicting Spot Interruptions Beat Checkpointing? A Trace-Driven Study with Real Reclaims*). To see it run locally: `python demo/run_demo.py`.
 
 > **Status: v2 (October 2026).** Weeks 1–8 built the system; the v2 round answered the ML4Sys 2026 workshop reviews: the predictor now has to actually predict (trace-driven benchmark with its own causal scores), it was retrained on 100x more data, tested against real reclaims from a sensor fleet, and the full predictive path was run on real EKS. Findings in one line: reacting to the notice is enough while a checkpoint fits in 2 minutes; beyond that a good predictor beats periodic checkpointing, but price history does not predict real reclaims, while AWS's placement score does.
 
