@@ -16,6 +16,9 @@ $env:PYTHONIOENCODING = "utf-8"
 $end = [datetime]::SpecifyKind([datetime]::Parse($s.end_utc), [DateTimeKind]::Utc)
 $now = (Get-Date).ToUniversalTime()
 
+# Spot quota requests: logs a change and pops a notice once when AWS answers (state in quota_watch.json)
+Start-Process $s.python -WindowStyle Hidden -WorkingDirectory $root -ArgumentList "scripts\quota_watch.py"
+
 function Running($pattern) {
     @(Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match $pattern }).Count -gt 0
 }
@@ -53,7 +56,8 @@ foreach ($p in $s.regions.PSObject.Properties) {
 if (-not (Running "post_campaign\.py")) {
     Say "starting finish pipeline"
     $regions = ($s.regions.PSObject.Properties | ForEach-Object { $_.Name }) -join ","
-    $args_ = @("scripts\post_campaign.py","--end-utc",$s.end_utc,"--regions",$regions,"--python",$s.python,"--tectonic",$s.tectonic)
+    # Start-Process joins arguments with spaces, so paths such as C:\Program Files\... must carry their own quotes
+    $args_ = @("scripts\post_campaign.py","--end-utc",$s.end_utc,"--regions",$regions,"--python","`"$($s.python)`"","--tectonic","`"$($s.tectonic)`"")
     if ($cloud) { $args_ += @("--s3-data", "s3://$($s.bucket)/campaign/data/") }
     Start-Process $s.python -WindowStyle Hidden -WorkingDirectory $root `
         -RedirectStandardOutput "$real\post_campaign.out" -RedirectStandardError "$real\post_campaign.err" `

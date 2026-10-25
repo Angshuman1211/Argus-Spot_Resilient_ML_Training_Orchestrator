@@ -2,7 +2,7 @@
  "end_utc": "2026-10-26T09:40",
  "profile": "argus-sensor",
  "per_pool": 1,
- "max_launches": 60,
+ "max_launches": 300,
  "regions": {
   "eu-north-1": "eu-north-1_20261025T094031Z",
   "us-east-1": "us-east-1_20261025T094031Z",
@@ -10,7 +10,9 @@
   "ap-southeast-1": "ap-southeast-1_20261025T094031Z"
  },
  "account": "906615256166",
- "note": "day 3: new account, original 8 types, 5 vCPU quota (32 requested)",
+ "note": "day 3: new account, original 8 types, 8 vCPU quota now (32 requested); cap raised to 300 launches/region at 10:00Z",
  "mode": "cloud",
- "bucket": "argus-checkpoints-906615256166"
+ "bucket": "argus-checkpoints-906615256166",
+ "python": "C:\\Program Files\\Python311\\python.exe",
+ "tectonic": "C:\\Users\\rayya\\AppData\\Local\\Temp\\claude\\f--Argus-boto3\\8b26b80d-26be-43f5-ba5f-610ebb9d9ca7\\scratchpad\\tectonic_bin\\tectonic.exe"
 }

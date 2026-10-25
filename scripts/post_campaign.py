@@ -3,12 +3,15 @@ Unattended finish for a sensor campaign: wait for its end time, stop any remaini
 catch up (events appear up to about 15 minutes late), then pull labels, re-run the real-reclaim evaluation, train the
 real-label model, rebuild the paper's numbers, tables and figures, compile it, and commit and push the results.
 
-Every step is logged; a failing step is recorded and the next ones still run when they can.
+Every step is logged; a failing step is recorded and the next ones still run when they can. Finished steps are
+checkpointed in ml/data/real/post_campaign_progress.json, so after a reboot, a crash or a Wi-Fi drop the watchdog
+(scripts/resume_campaign.ps1) restarts this script and it carries on after the last finished step.
 
     python scripts/post_campaign.py --end-utc 2026-10-15T00:00 --regions eu-north-1,us-east-1 --python <python> --tectonic <tectonic.exe>
 """
 import argparse
 import datetime as dt
+import json
 import os
 import socket
 import subprocess
@@ -17,6 +20,34 @@ import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 LOG = os.path.join(ROOT, "ml", "data", "real", "post_campaign.log")
+PROGRESS = os.path.join(ROOT, "ml", "data", "real", "post_campaign_progress.json")
+
+
+class Progress:
+    """Steps already finished for one campaign (keyed by its end time), written atomically after each step."""
+
+    def __init__(self, end_utc):
+        self.key = end_utc
+        try:
+            with open(PROGRESS, encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, ValueError):
+            d = {}
+        self.done = list(d.get("done", [])) if d.get("end_utc") == end_utc else []
+
+    def step(self, name, fn):
+        """Runs fn() unless this step already finished before a restart; records it only if it succeeded."""
+        if name in self.done:
+            log(f"SKIP {name} (finished before a restart)")
+            return True
+        ok = fn()
+        if ok:
+            self.done.append(name)
+            tmp = PROGRESS + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump({"end_utc": self.key, "done": self.done}, f, indent=1)
+            os.replace(tmp, PROGRESS)
+        return ok
 
 
 def log(msg):
@@ -75,28 +106,39 @@ def main():
     regions = a.regions.split(",")
     env = dict(os.environ, AWS_PROFILE=os.environ.get("AWS_PROFILE", "argus-sensor"), PYTHONIOENCODING="utf-8",
                AWS_REGIONS=a.regions)
-    log(f"waiting until {end:%Y-%m-%d %H:%M}Z")
+    prog = Progress(a.end_utc)
+    log(f"waiting until {end:%Y-%m-%d %H:%M}Z" + (f" (resuming; done: {', '.join(prog.done)})" if prog.done else ""))
     while dt.datetime.utcnow() < end:
         time.sleep(30)
 
     py = a.python
     for r in regions:  # the campaigns terminate their own sensors; this is the backstop
-        run_net(f"stop remaining sensors in {r}", [py, "scripts/sensor_campaign.py", "--region", r, "--stop-only"], env=env)
-    log(f"waiting {a.cloudtrail_wait_min} minutes for CloudTrail")
-    time.sleep(a.cloudtrail_wait_min * 60)
+        prog.step(f"stop remaining sensors in {r}", lambda r=r: run_net(
+            f"stop remaining sensors in {r}", [py, "scripts/sensor_campaign.py", "--region", r, "--stop-only"], env=env))
+    # wait for CloudTrail until end + N minutes: after a restart only the part of the wait that is left
+    ready = end + dt.timedelta(minutes=a.cloudtrail_wait_min)
+    left = (ready - dt.datetime.utcnow()).total_seconds()
+    if left > 0:
+        log(f"waiting {left / 60:.0f} minutes for CloudTrail")
+        time.sleep(left)
 
     ok = []
     if a.s3_data:  # the runner syncs every 2 minutes and makes a final sync 10 minutes after the end
-        ok.append(run_net("sync campaign data from S3", ["aws", "s3", "sync", a.s3_data, "ml/data/real/"], env=env))
-    ok.append(run_net("pull reclaim labels", [py, "ml/data/pull_reclaim_labels.py"], env=env))
-    ok.append(run_net("pull spot signals (rebalance recommendations)", [py, "ml/data/pull_spot_signals.py"], env=env))
-    ok.append(run_net("evaluate against real reclaims", [py, "ml/model/evaluate_real_reclaims.py"], env=env))
-    ok.append(run("train real-label model", [py, "ml/model/train_real_label_model.py"], env=env))
-    ok.append(run("paper numbers", [py, "Paper/v2/build_numbers.py"], env=env))
-    ok.append(run("paper tables", [py, "Paper/v2/build_tables.py"], env=env))
-    ok.append(run("paper figures", [py, "Paper/v2/make_figures.py"], env=env))
-    if a.tectonic:
-        ok.append(run("compile paper", [a.tectonic, "-X", "compile", "argus_v2.tex"], cwd=os.path.join(ROOT, "Paper", "v2"), env=env))
+        ok.append(prog.step("sync campaign data from S3", lambda: run_net(
+            "sync campaign data from S3", ["aws", "s3", "sync", a.s3_data, "ml/data/real/"], env=env)))
+    for name, cmd, net in [
+        ("pull reclaim labels", [py, "ml/data/pull_reclaim_labels.py"], True),
+        ("pull spot signals (rebalance recommendations)", [py, "ml/data/pull_spot_signals.py"], True),
+        ("evaluate against real reclaims", [py, "ml/model/evaluate_real_reclaims.py"], True),
+        ("train real-label model", [py, "ml/model/train_real_label_model.py"], False),
+        ("paper numbers", [py, "Paper/v2/build_numbers.py"], False),
+        ("paper tables", [py, "Paper/v2/build_tables.py"], False),
+        ("paper figures", [py, "Paper/v2/make_figures.py"], False),
+    ]:
+        ok.append(prog.step(name, lambda name=name, cmd=cmd, net=net: (run_net if net else run)(name, cmd, env=env)))
+    if a.tectonic and os.path.exists(a.tectonic):
+        ok.append(prog.step("compile paper", lambda: run(
+            "compile paper", [a.tectonic, "-X", "compile", "argus_v2.tex"], cwd=os.path.join(ROOT, "Paper", "v2"), env=env)))
     run("stage results", ["git", "add", "-f", "Paper/v2", "ml/data/real", "ml/model/wide_results", "ml/model/final"], env=env)
     # after a restart this may run a second time with nothing new to commit: that is fine, but still push
     nothing_new = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT, env=env).returncode == 0
