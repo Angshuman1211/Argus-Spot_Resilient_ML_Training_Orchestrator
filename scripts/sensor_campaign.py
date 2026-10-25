@@ -36,6 +36,8 @@ MAX_LIFE_MIN = 120
 BACKOFF_AFTER_FAILURE_S = 600  # do not hammer a pool that just reported no capacity
 QUOTA_PAUSE_S = 300  # the account hit its Spot quota: wait for sensors to end before launching more
 QUOTA_CODES = {"MaxSpotInstanceCountExceeded", "VcpuLimitExceeded", "InstanceLimitExceeded"}
+# the whole account cannot launch (AWS review or block): retrying only adds noise, so the campaign stops
+ACCOUNT_BLOCK_CODES = {"Blocked", "PendingVerification", "OptInRequired", "AccountDisabled"}
 SENSOR_FILTER = [{"Name": "tag:argus-sensor", "Values": ["true"]},
                  {"Name": "instance-state-name", "Values": ["pending", "running"]}]
 
@@ -183,6 +185,9 @@ def main():
                 except ClientError as e:
                     code = e.response["Error"]["Code"]
                     w.writerow(["", t, az, now, f"failed:{code}"])
+                    if code in ACCOUNT_BLOCK_CODES:
+                        stop_reason = f"account blocked from launching ({code})"
+                        break
                     if code in QUOTA_CODES:
                         quota_until = time.time() + QUOTA_PAUSE_S
                     else:
@@ -202,6 +207,8 @@ def main():
             print(f"{dt.datetime.utcnow():%H:%M}Z {region} active {sum(active().values())} launches {launches}", flush=True)
         except (BotoCoreError, ClientError) as e:  # network drop or throttling: keep going, the next poll retries
             print(f"{dt.datetime.utcnow():%H:%M}Z {region} poll error: {e}", flush=True)
+        if stop_reason:
+            break
         time.sleep(a.poll_seconds)
 
     ids = sensor_ids(ec2)

@@ -1,0 +1,26 @@
+{
+ "eu-north-1": {
+  "quota": 0.0,
+  "status": "CASE_OPENED",
+  "desired": 32.0,
+  "case": "179292072900909"
+ },
+ "us-east-1": {
+  "quota": 0.0,
+  "status": "CASE_OPENED",
+  "desired": 32.0,
+  "case": "179292073200039"
+ },
+ "us-east-2": {
+  "quota": 0.0,
+  "status": "CASE_OPENED",
+  "desired": 32.0,
+  "case": "179292073200709"
+ },
+ "ap-southeast-1": {
+  "quota": 0.0,
+  "status": "CASE_OPENED",
+  "desired": 32.0,
+  "case": "179292055600697"
+ }
+}
