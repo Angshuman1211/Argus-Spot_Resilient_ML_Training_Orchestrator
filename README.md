@@ -1,16 +1,16 @@
 # Argus — Spot-Resilient ML Training Orchestrator
 
-[![Build](https://github.com/Ganglet/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/deploy.yml/badge.svg?branch=master)](https://github.com/Ganglet/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/deploy.yml)
+[![Build](https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/tests.yml/badge.svg?branch=master)](https://github.com/Angshuman1211/Argus-Spot_Resilient_ML_Training_Orchestrator/actions/workflows/tests.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](ml/api/Dockerfile)
 [![Kubernetes](https://img.shields.io/badge/kubernetes-operator-326ce5.svg)](helm/argus)
 [![AWS EKS](https://img.shields.io/badge/AWS-EKS-ff9900.svg)](docs/objective1_result.md)
 
-A three-layer system that predicts EC2 Spot interruptions before they happen and automatically checkpoints + migrates running ML training jobs — zero human intervention. The reactive drain-to-resume path is validated on real AWS EKS; the predictive path is evaluated in a local benchmark.
+A three-layer system that predicts EC2 Spot interruptions and automatically checkpoints + migrates running ML training jobs, with no human in the loop. Both the reactive path (AWS's 2-minute notice) and the predictive path (operator acts on a risk score) run end to end on real AWS EKS. The predictor is evaluated in a trace-driven benchmark and against 152 real Spot reclaims.
 
-**Project page:** https://d3sswpse16lfj7.cloudfront.net (results, architecture, and the honest findings, hosted on AWS S3 + CloudFront). To see it run locally: `python demo/run_demo.py`.
+**Paper:** [arxiv.org/abs/2609.39067](https://arxiv.org/abs/2609.39067) (*When Does Predicting Spot Interruptions Beat Checkpointing? A Trace-Driven Study with Real Reclaims*). To see it run locally: `python demo/run_demo.py`.
 
-> **Status: complete (Weeks 1–8).** Live-EKS interruption survival captured, a controlled benchmark quantifies when prediction pays, the risk model is trained/calibrated/characterized, and the whole loop is observable in Grafana. Targeting a NeurIPS ML4Sys 2026 workshop poster.
+> **Status: v2 (October 2026).** Weeks 1–8 built the system; the v2 round answered the ML4Sys 2026 workshop reviews: the predictor now has to actually predict (trace-driven benchmark with its own causal scores), it was retrained on 100x more data, tested against real reclaims from a sensor fleet, and the full predictive path was run on real EKS. Findings in one line: reacting to the notice is enough while a checkpoint fits in 2 minutes; beyond that a good predictor beats periodic checkpointing, but price history does not predict real reclaims, while AWS's placement score does.
 
 ---
 
@@ -21,21 +21,21 @@ flowchart TB
     subgraph L1["Prediction Layer &mdash; Person B"]
         SP["EC2 Spot price history"] --> LAM["Lambda price collector<br/>(every 5 min)"]
         LAM --> FS[("S3 feature store")]
-        FS --> TF["Transformer<br/>SpotInterruptionPredictor"]
-        TF --> API["FastAPI /predict<br/>risk score 0&ndash;1"]
+        FS --> TF["Price model (boosted trees)<br/>+ capacity model (placement score, age)"]
+        TF --> API["FastAPI /predict, /reclaim_risk<br/>risk 0&ndash;1"]
     end
 
     subgraph L2["Orchestration Layer &mdash; Person A"]
         OP["kopf operator<br/>reconcile loop"]
         DEC{"risk &gt; threshold?"}
         OP --> DEC
-        DEC -->|"yes"| ACT["Flush checkpoint to S3<br/>+ cordon node + reschedule<br/>+ publish SQS risk event"]
+        DEC -->|"yes"| ACT["Flush handshake (trigger + ack)<br/>+ cordon node + recreate pod<br/>+ publish SQS risk event"]
     end
 
     subgraph L3["Training Layer"]
         POD["CIFAR-10 training pod"]
         CKPT[("S3 checkpoints<br/>latest_checkpoint.pt")]
-        POD -->|"poll _FLUSH_TRIGGER<br/>every 100 batches"| CKPT
+        POD -->|"poll _FLUSH_TRIGGER<br/>every 5 s, write _FLUSH_ACK"| CKPT
         CKPT -->|"resume from epoch N"| POD
     end
 
@@ -68,9 +68,9 @@ EC2 Spot instances are ~70–90% cheaper than On-Demand but can be reclaimed on 
 
 | Layer | What it does |
 |-------|--------------|
-| **1. Prediction** (Person B) | Lambda pulls Spot price history every 5 min → S3 feature store → a Transformer scores interruption risk → served via FastAPI `/predict`. |
-| **2. Orchestration** (Person A) | A `kopf` Kubernetes operator (the `SpotResilientJob` CRD) polls `/predict`; when risk crosses the threshold (`0.05` for the real calibrated model, a 10% alarm budget) it writes a `_FLUSH_TRIGGER` to S3, waits for the pod to confirm the flush, cordons the node, reschedules the pod, and publishes an SQS risk event. |
-| **3. Training** | The CIFAR-10 job polls the trigger every 100 batches and saves `model.pt`; a SIGTERM handler checkpoints on drain; the replacement pod resumes from the last epoch. |
+| **1. Prediction** (Person B) | Lambda pulls Spot price history every 5 min → S3 feature store. A gradient-boosted model scores the chance of a price spike (`/predict`); a second model trained on real reclaims scores reclaim risk from AWS's placement score and the node's age (`/reclaim_risk`). Both served by FastAPI. |
+| **2. Orchestration** (Person A) | A `kopf` Kubernetes operator (the `SpotResilientJob` CRD) polls the risk every minute (`riskSignal: price` → `/predict`, threshold `0.05`; `riskSignal: capacity` → `/reclaim_risk`, threshold about `0.16`; both a 10% alarm budget). Above the threshold it writes a request id to `_FLUSH_TRIGGER`, waits for the pod to echo it in `_FLUSH_ACK`, cordons the node, deletes the pod and recreates it from a snapshot on another node, then publishes an SQS risk event. A 15-minute cooldown stops it chasing a pool whose risk stays high. |
+| **3. Training** | The CIFAR-10 job polls the trigger every 5 seconds, saves the checkpoint to S3 and acknowledges it; a SIGTERM handler checkpoints on drain; the replacement pod resumes from the last epoch. |
 
 The checkpoint mechanism is deliberately **decoupled** — the operator only *signals*; the training pod owns the flush — so the operator never touches training-process internals.
 
@@ -137,14 +137,34 @@ this is conditional on the proxy. Method, selection protocol and caveats:
 
 Retrained in October on 100x more data (8 regions, 768 series, 20.8k training positives) with gradient
 boosting on engineered features. On an untouched, later test slice it reaches **101x lift (AUROC 0.980), 25.5x
-among the windows where a spike is possible at all**, steady across seeds (98.5x to 101.4x). Three honest
-points: the old shipped model scores only 2.2x on the same windows (its 21.8x did not hold up out of time);
-a clock-only rule already gets 4x because AWS now updates prices hourly; and two real Spot reclaims on record
-(c5.xlarge and m5.large in eu-north-1b, minutes after launch) were not flagged by either model. The two
-earlier-rejected features (cross-AZ divergence, Advisor rate) are now rejected with multi-seed evidence; update
-cadence and price position are what carry the signal. Details and all tables:
+among the windows where a spike is possible at all**, steady across seeds (98.5x to 101.4x). Two honest
+points: the old shipped model scores only 2.2x on the same windows (its 21.8x did not hold up out of time),
+and a clock-only rule already gets 4x because AWS now updates prices hourly. The two earlier-rejected features
+(cross-AZ divergence, Advisor rate) are now rejected with multi-seed evidence; update cadence and price position
+are what carry the signal. Details and all tables:
 [`docs/wide_model_result.md`](docs/wide_model_result.md). The prediction service computes its features live
 from recent prices (`ml/api/`, `PRICE_SOURCE=ec2|s3|csv`) with the same code that trained the model.
+
+#### Real reclaims: price history does not predict them, AWS's capacity signal does
+
+Real reclaim labels are not published, so a fleet of small Spot "sensor" instances produced them
+(`scripts/sensor_campaign.py`): **315 instances, 152 reclaimed**, over two days in four regions
+(eu-north-1, us-east-1, us-east-2, ap-southeast-1). AUROC for "reclaimed within 15 minutes", 95% intervals
+resampled by hour:
+
+| Predictor | AUROC |
+|---|---:|
+| price-history model (above) | 0.53 [0.47, 0.60] |
+| AWS Spot placement score | 0.74 [0.69, 0.80] |
+| instance age (control) | 0.75 [0.67, 0.80] |
+| logistic model on placement, age, price risk | 0.77 [0.71, 0.83] |
+| reclaim rate of the pool in other hours | 0.85 [0.81, 0.89] |
+
+The price model has no skill on real reclaims and price spikes do not coincide with them, so the
+trace-benchmark gain above holds only if reclaims follow price spikes. A placement-score-and-age model holds up
+on a held-out day (0.74), held-out pools (0.76) and a held-out region (0.77). It is served at `/reclaim_risk`
+(`ml/api/capacity.py`) and the operator uses it with `riskSignal: capacity`. It was fitted on two days of small
+instances, so treat it as a first real-label model. Details: [`docs/wide_model_result.md`](docs/wide_model_result.md) Section 7b.
 
 ### Observability
 
@@ -160,7 +180,8 @@ Run it: `./scripts/monitoring.sh up` → `./scripts/monitoring.sh open`. See [`d
 
 - **Objective 1** used an *injected* (schema-conformant) reclaim, not an AWS-issued FIS reclaim.
 - **Objective 2** (Poisson benchmark) predictive's zero-waste assumed a configured lead time, not model output; the trace-driven re-run above replaces it. Kills there are still a price-spike proxy, and the job is simulated (mechanics, not SOTA accuracy).
-- **Objective 3** is measured on a proxy label (price spikes). Two real reclaims showed no price signal, so the model's skill at predicting reclaims is unproven; a time-capped sensor fleet to collect real labels is ready but has not been run (`scripts/launch_reclaim_sensors.sh`, `ml/data/pull_reclaim_labels.py`).
+- **Objective 3**: the price model is trained and benchmarked on a proxy label (price spikes), and on 152 real reclaims it has no skill (AUROC 0.53). The capacity model that does better (0.74 to 0.77) comes from only two days of small sensor instances in four regions; long-running training nodes may behave differently.
+- The operator manages each job's pod individually; it does not coordinate all nodes of one multi-node synchronous job.
 - Real Spot on the primary account was gated by a Free-Tier restriction for most of the build (ADR-005), so Week-6 nodes were On-Demand.
 
 Owning these is the point — see the framing in [`docs/poster_blueprint.md`](docs/poster_blueprint.md).
@@ -174,7 +195,7 @@ Project/
 ├── terraform/          # All AWS infra (VPC, S3, SQS, IAM, EKS, IRSA, ECR)
 ├── lambda/             # Spot price collector (EventBridge cron → S3)
 ├── operator/           # kopf Kubernetes operator + SpotResilientJob CRD
-├── ml/                 # Transformer model, FastAPI predict service, CIFAR-10 job, label pull
+├── ml/                 # Risk models, FastAPI predict service, CIFAR-10 job, real-reclaim label tools
 ├── benchmark/          # Objective 2 harness, arms, results, figures
 ├── helm/argus/         # Helm chart (operator + metrics Service)
 ├── k8s/monitoring/     # Prometheus + Grafana (Phase 7)
@@ -202,8 +223,12 @@ python benchmark/aggregate.py                   # -> benchmark/results/summary_t
 cd localstack && docker compose up -d          # LocalStack S3/SQS
 bash minikube/setup.sh                          # CRD + RBAC on minikube
 
+# --- Account-specific names come from one setting (scripts/argus_env.sh) ---
+export ARGUS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+# manifests under demo/ and k8s/ use ${ARGUS_ACCOUNT_ID}: envsubst < file.yaml | kubectl apply -f -
+
 # --- Observability stack (minikube) ---
-helm upgrade --install argus ./helm/argus --namespace default
+helm upgrade --install argus ./helm/argus --namespace default --set aws.accountId=$ARGUS_ACCOUNT_ID
 ./scripts/monitoring.sh up && ./scripts/monitoring.sh open
 
 # --- Real EKS interruption drill (Objective 1) ---
@@ -234,11 +259,12 @@ Born from a \$66 EKS cluster left running unnoticed. EKS/NAT are hourly billers 
 | **6** | ✅ Deployed to **real EKS** — Helm operator, IRSA, live migration chain end-to-end, torn down to \$0 | ✅ Real model + predict-service on EKS, real checkpoint to S3, resume validated |
 | **7** | ✅ Prometheus + Grafana observability, CI/CD guarded | ✅ Metrics instrumented in the reconcile loop |
 | **8** | ✅ Objective 1 (real-EKS survival), README + architecture diagram, poster blueprint | ✅ Objective 2 (benchmark), Objective 3 (model characterized, 14.7× proxy lift) |
+| **9 (v2)** | ✅ Flush handshake + cooldown + pod recreation, predictive path drilled on real EKS (5 defects found and fixed), account-neutral config | ✅ Trace-driven benchmark, model retrained on 100x data, real-reclaim sensor fleet, capacity model served at `/reclaim_risk` |
 
 ## Authors
 
-- **Person A** — cloud/infrastructure: Terraform, EKS, the Kubernetes operator, CI/CD, observability, real-Spot interruption drill.
-- **Person B** — machine learning: feature pipeline, the Transformer risk model, FastAPI predict service, CIFAR-10 training job, benchmark harness.
+- **Angshuman Chakravertty** (Person A) — cloud/infrastructure: Terraform, EKS, the Kubernetes operator, CI/CD, observability, real-Spot interruption drill.
+- **MD Rayyan** (Person B) — machine learning: feature pipeline, the risk models, FastAPI predict service, CIFAR-10 training job, benchmark harness and trace simulator, real-reclaim sensor campaign.
 
 ## Documentation index
 
