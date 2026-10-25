@@ -31,7 +31,7 @@ echo "==> Applying CRD..."
 kubectl apply -f "$REPO_ROOT/operator/crd/spotresilientjob.yaml"
 
 echo "==> Applying RBAC (ServiceAccount, ClusterRole, ClusterRoleBinding)..."
-kubectl apply -f "$REPO_ROOT/operator/rbac.yaml"
+envsubst < "$REPO_ROOT/operator/rbac.yaml" | kubectl apply -f -  # IRSA ARN unused off-EKS
 
 echo "==> Verifying CRD is registered..."
 kubectl get crd spotresilientjobs.argus.io
@@ -50,7 +50,7 @@ echo "  source .env.local"
 echo "  kopf run controller/handlers.py --verbose"
 echo ""
 echo "Submit a test job:"
-echo "  kubectl apply -f $REPO_ROOT/demo/spotresilientjob.yaml"
+echo "  envsubst < $REPO_ROOT/demo/spotresilientjob.yaml | kubectl apply -f -"
 echo "  kubectl get spotresilientjobs"
 echo ""
 echo "Tear down when done:"

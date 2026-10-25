@@ -1,13 +1,12 @@
+# Account-specific: apply with  envsubst < demo/spotresilientjob-real.yaml | kubectl apply -f -   (see scripts/argus_env.sh)
 apiVersion: argus.io/v1
 kind: SpotResilientJob
 metadata:
   name: cifar10-test
   namespace: default
 spec:
-  image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
-  command: ["python", "train.py"]
-  checkpointPath: s3://argus-checkpoints-844641713781/checkpoints/cifar10-test
-  checkpointIntervalSteps: 500
+  image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
+  checkpointPath: s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/checkpoints/cifar10-test
   # Real-model variant: 0.05 is the 10% alarm budget on the calibration slice for these
   # instance types (docs/trace_benchmark_result.md). Use spotresilientjob.yaml (0.65) only
   # with the mock predictor.

@@ -12,11 +12,11 @@ import torchvision
 import torchvision.transforms as transforms
 
 # S3_BUCKET and S3_PREFIX must align with the CRD's checkpointPath.
-# checkpointPath: s3://argus-checkpoints-844641713781/checkpoints/cifar10-test
-# → S3_BUCKET = argus-checkpoints-844641713781
+# checkpointPath: s3://argus-checkpoints-<account id>/checkpoints/cifar10-test
+# → S3_BUCKET = argus-checkpoints-<account id>   (set by the pod manifest)
 # → S3_PREFIX = checkpoints/cifar10-test/latest_checkpoint.pt
 # → trigger key = checkpoints/cifar10-test/_FLUSH_TRIGGER  (written by operator)
-S3_BUCKET = os.environ.get("S3_BUCKET", "argus-checkpoints-844641713781")
+S3_BUCKET = os.environ.get("S3_BUCKET", "")
 S3_PREFIX = os.environ.get("S3_PREFIX", "checkpoints/cifar10-test/latest_checkpoint.pt")
 LOCAL_CHECKPOINT_PATH = "checkpoint.pt"
 
@@ -174,6 +174,8 @@ def check_flush_trigger(epoch):
 
 def main():
     global current_epoch
+    if not S3_BUCKET:
+        sys.exit("S3_BUCKET is not set (argus-checkpoints-<account id>); the pod manifest sets it")
 
     transform = transforms.Compose([
         transforms.ToTensor(),

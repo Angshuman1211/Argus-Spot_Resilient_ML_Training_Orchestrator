@@ -77,7 +77,8 @@ def measure_s3(size_mb, bucket, region):
 def main():
     rows = []
     if "--s3" in __import__("sys").argv:
-        bucket = os.environ.get("CHECKPOINT_BUCKET", "argus-checkpoints-844641713781")
+        bucket = (os.environ.get("CHECKPOINT_BUCKET")
+                  or "argus-checkpoints-" + __import__("boto3").client("sts").get_caller_identity()["Account"])
         region = os.environ.get("AWS_REGION", "eu-north-1")
         for mb in (4, 64, 256):
             up, up_rate, dn, dn_rate = measure_s3(mb, bucket, region)

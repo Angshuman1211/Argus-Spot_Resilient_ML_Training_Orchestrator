@@ -1,5 +1,6 @@
 image:
-  repository: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/operator
+  # empty: <aws.accountId>.dkr.ecr.<aws.region>.amazonaws.com/argus/operator
+  repository: ""
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -18,13 +19,16 @@ metrics:
   port: 8080
 
 aws:
+  # The only account-specific setting: helm --set aws.accountId=<12-digit id>. The names below default
+  # to what terraform/ creates in that account; set them only to override.
+  accountId: ""
   region: eu-north-1
-  checkpointBucket: argus-checkpoints-844641713781
-  riskEventsQueueUrl: https://sqs.eu-north-1.amazonaws.com/844641713781/argus-risk-events
+  checkpointBucket: ""     # argus-checkpoints-<accountId>
+  riskEventsQueueUrl: ""   # https://sqs.<region>.amazonaws.com/<accountId>/argus-risk-events
 
 serviceAccount:
   name: argus-operator
-  irsaRoleArn: arn:aws:iam::844641713781:role/argus-operator-irsa
+  irsaRoleArn: ""          # arn:aws:iam::<accountId>:role/argus-operator-irsa
 
 resources:
   requests:

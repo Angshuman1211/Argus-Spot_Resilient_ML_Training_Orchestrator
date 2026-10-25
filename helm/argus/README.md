@@ -10,9 +10,9 @@ training pods ahead of a Spot interruption. Works against **minikube**
 - A cluster (`minikube start`, or a live EKS cluster — see `terraform/`)
 - `kubectl` pointed at that cluster
 - `helm` 3.x
-- Images already built and pushed to ECR (`scripts/build_and_push_all.sh`) —
-  the chart references `844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/operator:latest`
-  by default (`values.yaml`)
+- Images already built and pushed to ECR (`scripts/push_operator.sh`). The chart
+  derives the image, bucket, queue and IRSA role from one value, `aws.accountId`
+  (`<accountId>.dkr.ecr.<region>.amazonaws.com/argus/operator:latest` by default)
 - On EKS: the `argus-operator-irsa` IAM role must already exist (Terraform
   output) — the chart's ServiceAccount annotates itself with that role's ARN
   for AWS access (S3 checkpoints, SQS risk events), no static credentials.
@@ -22,7 +22,7 @@ training pods ahead of a Spot interruption. Works against **minikube**
 ## Install
 
 ```bash
-helm upgrade --install argus ./helm/argus --namespace default
+helm upgrade --install argus ./helm/argus --namespace default \n  --set aws.accountId=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 This deploys, in one release: the `spotresilientjobs.argus.io` CRD, the
@@ -43,13 +43,13 @@ The operator calls out to this over HTTP (`operator.predictServiceUrl` in
 manifest, not part of this chart:
 
 ```bash
-kubectl apply -f k8s/predict-service.yaml
+envsubst < k8s/predict-service.yaml | kubectl apply -f -
 ```
 
 ## Deploy a training job
 
 ```bash
-kubectl apply -f demo/spotresilientjob.yaml
+envsubst < demo/spotresilientjob.yaml | kubectl apply -f -
 kubectl get spotresilientjob   # shortname: srj
 ```
 

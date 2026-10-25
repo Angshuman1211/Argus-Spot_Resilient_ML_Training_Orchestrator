@@ -6,7 +6,8 @@
 set -e
 
 REGION="eu-north-1"
-ACCOUNT="844641713781"
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/argus_env.sh"
+ACCOUNT="$ARGUS_ACCOUNT_ID"
 REPO="argus/training-job"
 TAG="${1:-latest}"
 IMAGE="$ACCOUNT.dkr.ecr.$REGION.amazonaws.com/$REPO:$TAG"

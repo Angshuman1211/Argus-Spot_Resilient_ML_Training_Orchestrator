@@ -13,7 +13,8 @@ set -euo pipefail
 CTX="${KUBE_CONTEXT:-argus-eks}"
 K="kubectl --context $CTX"
 STATE="${STATE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/demo/drill/saved_state}"
-REG=844641713781.dkr.ecr.eu-north-1.amazonaws.com
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/argus_env.sh"
+REG="$ARGUS_REGISTRY"
 OUT="${DRILL_OUT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/demo/drill/results}"
 mkdir -p "$STATE" "$OUT"
 
@@ -22,7 +23,7 @@ cmd_prepare() {
   $K get srj -A -o yaml > "$STATE/srj_before.yaml" || true
   echo "saved previous state to $STATE"
   $K set image deploy/argus-predict-service predict-service=$REG/argus/predict-service:v2-xgb -n default
-  $K set env deploy/argus-predict-service PRICE_SOURCE=s3object PRICE_S3_URI=s3://argus-checkpoints-844641713781/prices/latest.csv AWS_REGION=eu-north-1 -n default
+  $K set env deploy/argus-predict-service PRICE_SOURCE=s3object PRICE_S3_URI=s3://$ARGUS_CKPT_BUCKET/prices/latest.csv AWS_REGION=eu-north-1 -n default
   $K patch deploy argus-predict-service -n default -p '{"spec":{"template":{"spec":{"serviceAccountName":"argus-operator"}}}}'
   $K set image deploy/argus-operator operator=$REG/argus/operator:v2 -n default || \
     $K set image deploy/argus-operator '*'=$REG/argus/operator:v2 -n default

@@ -27,7 +27,7 @@ import urllib.request
 from datetime import datetime, timezone
 
 DATA_URL = "https://spot-bid-advisor.s3.amazonaws.com/spot-advisor-data.json"
-FEATURE_BUCKET = "argus-feature-store-844641713781"
+FEATURE_BUCKET = __import__("os").environ.get("FEATURE_STORE_BUCKET", "")  # argus-feature-store-<account id>
 
 
 def fetch():
@@ -92,6 +92,8 @@ def main():
 
     if args.upload_s3:
         import boto3
+        if not FEATURE_BUCKET:
+            sys.exit("set FEATURE_STORE_BUCKET (argus-feature-store-<account id>) to upload")
         s3 = boto3.client("s3")
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         s3.upload_file(args.out, FEATURE_BUCKET, f"labels/spot_interruption_labels_{stamp}.csv")

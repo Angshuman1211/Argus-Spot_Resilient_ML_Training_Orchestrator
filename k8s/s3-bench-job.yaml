@@ -1,3 +1,4 @@
+# Account-specific: apply with  envsubst < k8s/s3-bench-job.yaml | kubectl apply -f -   (see scripts/argus_env.sh)
 # One-off in-region S3 throughput probe: how long does a checkpoint of a given size take to reach S3 from a
 # real EKS node? Replaces assumed upload rates in docs/wide_model_result.md. Uses the operator's IRSA role
 # (checkpoints bucket only) and writes under tmp-bench/. The role cannot delete, so clean up afterwards.
@@ -26,7 +27,7 @@ spec:
               set -u
               # The pod role cannot delete objects, so the same keys are overwritten and the (versioned) test
               # data is removed afterwards with admin credentials: aws s3api list-object-versions --prefix tmp-bench/
-              B=s3://argus-checkpoints-844641713781/tmp-bench
+              B=s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/tmp-bench
               echo "concurrency,size_mb,upload_ms,download_ms"
               for conc in 10 32; do
                 aws configure set default.s3.max_concurrent_requests $conc

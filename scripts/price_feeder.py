@@ -33,7 +33,8 @@ def publish(region, bucket, key):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--region", default="eu-north-1")
-    ap.add_argument("--bucket", default="argus-checkpoints-844641713781")
+    ap.add_argument("--bucket", default=os.environ.get("ARGUS_CKPT_BUCKET"),
+                    required="ARGUS_CKPT_BUCKET" not in os.environ, help="argus-checkpoints-<account id>")
     ap.add_argument("--key", default="prices/latest.csv")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--every", type=int, default=300)

@@ -5,9 +5,8 @@ metadata:
   name: ${NAME}
   namespace: default
 spec:
-  image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:v2
-  command: ["python", "train.py"]
-  checkpointPath: s3://argus-checkpoints-844641713781/checkpoints/${NAME}
+  image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:v2
+  checkpointPath: s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/checkpoints/${NAME}
   riskThreshold: ${THRESHOLD}
   availabilityZone: eu-north-1a
   instanceFallback: ["m5.xlarge", "c5.xlarge"]

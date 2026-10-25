@@ -1,15 +1,14 @@
+# Account-specific: apply with  envsubst < demo/training-pod.yaml | kubectl apply -f -   (see scripts/argus_env.sh)
 # Training pod for the SpotResilientJob "cifar10-test".
 #
-# The operator does NOT create this — it only *watches* for a pod named exactly
-# "cifar10-test" (= the CRD name; scheduler.get_pod_node/reschedule_pod address
-# it by that name) with label argus.io/job=cifar10-test. When risk > threshold
-# it cordons this pod's node and deletes the pod.
+# You apply this once; the operator does not create it from scratch. It addresses the pod by its exact
+# name (= the SpotResilientJob name) and label argus.io/job=cifar10-test. When risk > threshold it
+# saves a cleaned copy of this pod, cordons its node, deletes it and recreates it from the copy, so the
+# replacement lands on another node and train.py's load_checkpoint() resumes from the latest S3
+# checkpoint instead of restarting from scratch.
 #
-# It's a bare Pod (not a Deployment/Job) because the operator targets that exact
-# name — a controller would generate hashed pod names it can't find. To show
-# resume-from-checkpoint after the operator deletes it, just re-apply this file:
-# train.py's load_checkpoint() pulls the latest checkpoint from S3 and resumes
-# at epoch+1 instead of restarting from scratch.
+# It is a bare Pod (not a Deployment/Job) because the operator targets that exact name; a controller
+# would generate hashed pod names. To stop the job for good, delete the SpotResilientJob first.
 apiVersion: v1
 kind: Pod
 metadata:
@@ -36,24 +35,26 @@ spec:
       emptyDir: {}
   # Pre-seed CIFAR-10 from S3 (in-region, seconds) so train.py skips the slow
   # ~35-min toronto.edu download. One-time upload of the tar:
-  #   aws s3 cp cifar-10-python.tar.gz s3://argus-checkpoints-844641713781/datasets/
+  #   aws s3 cp cifar-10-python.tar.gz s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/datasets/
   # Uses the pod's IRSA (argus-operator-irsa has s3:GetObject on the bucket).
   initContainers:
     - name: fetch-dataset
       image: public.ecr.aws/aws-cli/aws-cli:latest
-      command: ["sh", "-c", "aws s3 cp s3://argus-checkpoints-844641713781/datasets/cifar-10-python.tar.gz /app/data/cifar-10-python.tar.gz"]
+      command: ["sh", "-c", "aws s3 cp s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/datasets/cifar-10-python.tar.gz /app/data/cifar-10-python.tar.gz"]
       volumeMounts:
         - name: dataset
           mountPath: /app/data
   containers:
     - name: train
-      image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
+      image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:latest
       imagePullPolicy: IfNotPresent
       volumeMounts:
         - name: dataset      # torchvision finds the tar here, extracts, skips download
           mountPath: /app/data
       # AWS_ENDPOINT_URL intentionally left UNSET so boto3 hits real AWS.
       env:
+        - name: S3_BUCKET       # must match the SpotResilientJob's checkpointPath bucket
+          value: "argus-checkpoints-${ARGUS_ACCOUNT_ID}"
         - name: EPOCHS          # override baked-in 5 → long run so we can
           value: "30"           # interrupt mid-training for the migration demo
         - name: PYTHONUNBUFFERED # stream train.py logs live (no buffering)

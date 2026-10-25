@@ -1,3 +1,4 @@
+# Account-specific: apply with  envsubst < operator/rbac.yaml | kubectl apply -f -   (see scripts/argus_env.sh)
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -6,7 +7,7 @@ metadata:
   annotations:
     # Populated when running on real EKS (Week 6).
     # On Minikube this annotation is ignored — operator uses the ServiceAccount token directly.
-    eks.amazonaws.com/role-arn: "arn:aws:iam::844641713781:role/argus-operator-irsa"
+    eks.amazonaws.com/role-arn: "arn:aws:iam::${ARGUS_ACCOUNT_ID}:role/argus-operator-irsa"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

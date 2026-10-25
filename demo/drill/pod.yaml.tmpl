@@ -18,19 +18,19 @@ spec:
   initContainers:
     - name: fetch-dataset
       image: public.ecr.aws/aws-cli/aws-cli:latest
-      command: ["sh", "-c", "aws s3 cp s3://argus-checkpoints-844641713781/datasets/cifar-10-python.tar.gz /app/data/cifar-10-python.tar.gz"]
+      command: ["sh", "-c", "aws s3 cp s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/datasets/cifar-10-python.tar.gz /app/data/cifar-10-python.tar.gz"]
       volumeMounts:
         - name: dataset
           mountPath: /app/data
   containers:
     - name: train
-      image: 844641713781.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:v2
+      image: ${ARGUS_ACCOUNT_ID}.dkr.ecr.eu-north-1.amazonaws.com/argus/training-job:v2
       imagePullPolicy: Always
       volumeMounts:
         - name: dataset
           mountPath: /app/data
       env:
-        - {name: S3_BUCKET, value: argus-checkpoints-844641713781}
+        - {name: S3_BUCKET, value: argus-checkpoints-${ARGUS_ACCOUNT_ID}}
         - {name: S3_PREFIX, value: "checkpoints/${NAME}/latest_checkpoint.pt"}
         - {name: EPOCHS, value: "${EPOCHS}"}
         - {name: EXTRA_PARAMS_MB, value: "${EXTRA_MB}"}
