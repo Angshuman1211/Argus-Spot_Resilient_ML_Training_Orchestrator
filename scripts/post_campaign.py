@@ -1,7 +1,8 @@
 """
 Unattended finish for a sensor campaign: wait for its end time, stop any remaining sensors, wait for CloudTrail to
 catch up (events appear up to about 15 minutes late), then pull labels, re-run the real-reclaim evaluation, train the
-real-label model, rebuild the paper's numbers, tables and figures, compile it, and commit and push the results.
+real-label model, rebuild the paper's numbers, tables and figures (the paper lives in the gitignored
+presentation_files/Paper_v2), compile it, and commit and push the result files.
 
 Every step is logged; a failing step is recorded and the next ones still run when they can. Finished steps are
 checkpointed in ml/data/real/post_campaign_progress.json, so after a reboot, a crash or a Wi-Fi drop the watchdog
@@ -146,15 +147,15 @@ def main():
         ("pull spot signals (rebalance recommendations)", [py, "ml/data/pull_spot_signals.py"], True),
         ("evaluate against real reclaims", [py, "ml/model/evaluate_real_reclaims.py"], True),
         ("train real-label model", [py, "ml/model/train_real_label_model.py"], False),
-        ("paper numbers", [py, "Paper/v2/build_numbers.py"], False),
-        ("paper tables", [py, "Paper/v2/build_tables.py"], False),
-        ("paper figures", [py, "Paper/v2/make_figures.py"], False),
+        ("paper numbers", [py, "presentation_files/Paper_v2/build_numbers.py"], False),
+        ("paper tables", [py, "presentation_files/Paper_v2/build_tables.py"], False),
+        ("paper figures", [py, "presentation_files/Paper_v2/make_figures.py"], False),
     ]:
         ok.append(prog.step(name, lambda name=name, cmd=cmd, net=net: (run_net if net else run)(name, cmd, env=env)))
     if a.tectonic and os.path.exists(a.tectonic):
         ok.append(prog.step("compile paper", lambda: run(
-            "compile paper", [a.tectonic, "-X", "compile", "argus_v2.tex"], cwd=os.path.join(ROOT, "Paper", "v2"), env=env)))
-    run("stage results", ["git", "add", "-f", "Paper/v2", "ml/data/real", "ml/model/wide_results", "ml/model/final"], env=env)
+            "compile paper", [a.tectonic, "-X", "compile", "argus_v2.tex"], cwd=os.path.join(ROOT, "presentation_files", "Paper_v2"), env=env)))
+    run("stage results", ["git", "add", "-f", "ml/data/real", "ml/model/wide_results", "ml/model/final"], env=env)
     # after a restart this may run a second time with nothing new to commit: that is fine, but still push
     nothing_new = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=ROOT, env=env).returncode == 0
     committed = nothing_new or run("commit", ["git", "commit", "-q", "-m", f"real reclaim results, {len(regions)} regions, real-label model"], env=env)

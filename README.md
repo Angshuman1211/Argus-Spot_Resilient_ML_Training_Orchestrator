@@ -274,7 +274,7 @@ Born from a \$66 EKS cluster left running unnoticed. EKS/NAT are hourly billers 
 - [`docs/wide_model_result.md`](docs/wide_model_result.md) — retrained model, feature ablations, real-reclaim check (v2)
 - [`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md) — trace-driven benchmark with the real model in the loop (v2)
 - [`docs/review_response.md`](docs/review_response.md) — point-by-point answer to the workshop reviews
-- [`Paper/v2/argus_v2.tex`](Paper/v2/argus_v2.tex) — the revised paper (numbers generated from the result files)
+- The paper: [arxiv.org/abs/2609.39067](https://arxiv.org/abs/2609.39067) (paper sources are kept outside the repository)
 - [`Paper/fix_everything_plan.md`](Paper/fix_everything_plan.md) — the v2 fix list
 - [`docs/A6_observability.md`](docs/A6_observability.md) — Prometheus + Grafana
 - [`docs/problems_and_decisions.md`](docs/problems_and_decisions.md) — every problem (P-0xx) + ADRs

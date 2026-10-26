@@ -1,7 +1,7 @@
 # Response to the ML4Sys reviews, point by point
 
-Written for the arXiv v2 and any resubmission. The new paper is `Paper/v2/argus_v2.tex` (compiles with Tectonic;
-every number comes from a result file through `Paper/v2/build_numbers.py`). Evidence for each point is listed so a
+Written for the arXiv v2 and any resubmission. The new paper is `argus_v2.tex` (kept outside the repository, in the gitignored `presentation_files/Paper_v2/`) (compiles with Tectonic;
+every number comes from a result file through `build_numbers.py` in the same folder). Evidence for each point is listed so a
 reader can check it. Where a fix changed the conclusion, that is stated.
 
 ## Reviewer haku
@@ -53,7 +53,7 @@ Replaced by trace-driven replay of real Spot price history with the real model's
 shows are a poor stand-in for real reclaims; this is stated as the main limitation.
 
 **8. AI-sounding prose.**
-Rewritten from scratch in plain language. Checked against the project's writing rules by `Paper/v2/check_style.py`
+Rewritten from scratch in plain language. Checked against the project's writing rules by `check_style.py` in the same folder
 (no em or en dashes, `Section~\ref`, no typed section numbers, no colons or semicolons in prose). A human read of
 the whole paper by both authors is still needed before submission and cannot be done by a script.
 

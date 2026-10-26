@@ -30,7 +30,7 @@ The new account's EC2 limits are 0 (blocked by AWS on 25 Oct).
   - On **30 Oct, 15:30 IST**, its finish job rebuilds the results and paper numbers with the 160 reclaims, then commits and pushes. It resumes after a restart.
 - [ ] To stop it early, in PowerShell: `Unregister-ScheduledTask -TaskName argus-campaign-watchdog`.
 
-## 4. Paper (`Paper/v2`)
+## 4. Paper (`presentation_files/Paper_v2`, gitignored; SysAI version in `presentation_files/SysAI_paper`)
 
 - [ ] Add the 6 new reclaims (152 to 158 sensor reclaims, 160 with the 2 earlier CloudTrail ones). Rerun the evaluation, capacity model, numbers, tables and figures; the finish job on 30 Oct does this.
 - [ ] Rewrite the sentences that say "two days, four regions, 152".
