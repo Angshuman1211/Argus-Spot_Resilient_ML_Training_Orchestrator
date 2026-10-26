@@ -107,7 +107,7 @@ A controlled benchmark (4 arms × 4 interruption rates × 5 reps = **80 trials**
 | periodic | 100% | 4.3 | 158.8 | 24.0 |
 | predictive (fixed 600 s lead) | **20%** (1 of 5) | 0.0 | 353.2 (1 run) | 221.6 |
 
-What the table shows: **reactive's fixed 2-minute notice stops helping exactly when interruptions come faster than once per ~2 min** (at 120 s MTBF the notice ≈ the interval, so reactive degrades toward no-protection). Predictive's one clean win is **zero wasted compute**, but with an oversized lead it over-migrates and only 1 of 5 runs completes, so its makespan is from a single run. *Periodic* checkpointing, with no ML, matches it on waste and wins on makespan and checkpoint count. In this benchmark the predictive trigger is a configured lead time, not model output (see `Paper/fix_everything_plan.md`). Full table + figures: [`docs/objective2_result.md`](docs/objective2_result.md), [`benchmark/results/`](benchmark/results/).
+What the table shows: **reactive's fixed 2-minute notice stops helping exactly when interruptions come faster than once per ~2 min** (at 120 s MTBF the notice ≈ the interval, so reactive degrades toward no-protection). Predictive's one clean win is **zero wasted compute**, but with an oversized lead it over-migrates and only 1 of 5 runs completes, so its makespan is from a single run. *Periodic* checkpointing, with no ML, matches it on waste and wins on makespan and checkpoint count. In this benchmark the predictive trigger is a configured lead time, not model output; the trace-driven re-run below replaces it. Full table + figures: [`docs/objective2_result.md`](docs/objective2_result.md), [`benchmark/results/`](benchmark/results/).
 
 #### Trace-driven re-run (v2): the predictor has to actually predict
 
@@ -275,7 +275,7 @@ Born from a \$66 EKS cluster left running unnoticed. EKS/NAT are hourly billers 
 - [`docs/trace_benchmark_result.md`](docs/trace_benchmark_result.md) — trace-driven benchmark with the real model in the loop (v2)
 - [`docs/review_response.md`](docs/review_response.md) — point-by-point answer to the workshop reviews
 - The paper: [arxiv.org/abs/2609.39067](https://arxiv.org/abs/2609.39067) (paper sources are kept outside the repository)
-- [`Paper/fix_everything_plan.md`](Paper/fix_everything_plan.md) — the v2 fix list
+- [`docs/pending_work.md`](docs/pending_work.md) — what is still open
 - [`docs/A6_observability.md`](docs/A6_observability.md) — Prometheus + Grafana
 - [`docs/problems_and_decisions.md`](docs/problems_and_decisions.md) — every problem (P-0xx) + ADRs
 - [`docs/poster_blueprint.md`](docs/poster_blueprint.md) — the 4-page poster plan
