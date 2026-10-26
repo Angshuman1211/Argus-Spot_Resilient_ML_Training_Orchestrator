@@ -9,9 +9,9 @@ spec:
   checkpointPath: s3://argus-checkpoints-${ARGUS_ACCOUNT_ID}/checkpoints/cifar10-test
   # NOTE: 0.65 only makes sense against the mock predictor's 0-1 output range
   # (used for the Week 7 dashboard demo, docs/A6_observability.md). Against the
-  # REAL model, whose calibrated scores top out around 0.0018, this never fires -
-  # see docs/week7_model_evaluation.md. Set this to ~0.0015 (the model's own
-  # best-F1 threshold) if pointing PREDICT_SERVICE_URL at the real predict-service.
+  # real calibrated models it never fires. Against the real predict-service use
+  # 0.05 for riskSignal: price and about 0.12 for riskSignal: capacity (each a 10%
+  # alarm budget), as in demo/spotresilientjob-real.yaml.
   riskThreshold: 0.65
   instanceFallback:
     - m5.xlarge   # model has real features for this type + AZ (m5.large has none → 404)

@@ -35,7 +35,7 @@ spec:
                   description: >-
                     price = /predict, the price-spike model (threshold about 0.05 for a 10% alarm budget).
                     capacity = /reclaim_risk, the model trained on real reclaims from the AWS placement score and
-                    the node's age (threshold about 0.16 for a 10% alarm budget)
+                    the node's age (threshold about 0.12 for a 10% alarm budget)
                 availabilityZone:
                   type: string
                   default: eu-north-1a
