@@ -198,7 +198,7 @@ the next step.
 - The label is still a price-spike proxy. Section 7 is the reason to doubt it as a reclaim predictor.
 - One test period (9 days), one season. Series in the same region are correlated, so intervals are
   optimistic.
-- Instance types outside the 30 trained on are not served (the predictor returns 404).
+- Instance types outside the 29 trained on are not served (the predictor returns 404).
 - Lift is not precision: at the 10% alarm budget precision is 9.5%.
 
 ## 9. Robustness checks (added after the first draft)
@@ -273,3 +273,32 @@ were never reclaimed. Too few to rank.
 
 Conclusion unchanged and firmer: price history does not predict real reclaims; capacity signals do, more weakly in
 the US regions than in eu-north-1.
+
+## 7c. Update: three days, 160 reclaims (13, 14 and 25 Oct)
+
+Day 3 ran on a second AWS account (906615256166) from 09:40Z on 25 Oct, in four regions and from about 10:20Z in
+eight, until AWS blocked EC2 launches on that account at about 10:45Z. It added 30 sensors and 6 reclaims. Totals
+(`real_reclaim_eval.json`, `real_label_model.json`): 345 instances, 157 sensor reclaims with a launch record (one
+more sensor reclaim has none, plus the 2 CloudTrail reclaims of July, 160 in `real_reclaims.csv`), all in
+eu-north-1 (114), us-east-2 (19), ap-southeast-1 (13) and us-east-1 (11). Seven m5.large sensors in eu-north-1
+were reclaimed 2 to 4 minutes after launch, before their first five-minute step, so 150 reclaims enter the step
+table: 5,090 steps, 238 positive.
+
+| Predictor | AUROC [95% CI by hour] |
+|---|---|
+| Price-history model | 0.53 [0.46, 0.59] |
+| AWS placement score | 0.74 [0.69, 0.79] |
+| Pool reclaim rate, other hours | 0.84 [0.79, 0.88] |
+| Instance age (control) | 0.75 [0.69, 0.81] |
+| Logistic on placement, age, price (CV by hour) | 0.78 [0.72, 0.83] |
+| Rebalance Recommendation (12 covered reclaims) | 0.64 [0.43, 0.85] |
+
+Placement + age (logistic): trained on day 1 and tested on days 2 and 3 0.75 [0.68, 0.80] (placement alone 0.68),
+held-out pools 0.77, held-out region 0.78. The placement score only took the values 1, 2 and 3 (3 in most steps),
+so the capacity model clamps it to that range. Its 10% alarm budget threshold is now about 0.12.
+
+Precision, calibration and lead (`ml/model/real_label_quality.py`, `reclaim_quality.json`): the capacity model on
+held-out pools reaches PR-AUC 0.24 (5.2x the 4.6% base rate), catches 64% of reclaims at 26% precision at a 10%
+budget, and is calibrated (ECE 0.012). Only 41% of the reclaims it catches get five minutes of warning, because
+most reclaims come within minutes of launch. Put through the analytic model (`benchmark/analytic_model.py`), no
+predictor measured on real reclaims beats a tuned periodic schedule at any checkpoint time.
