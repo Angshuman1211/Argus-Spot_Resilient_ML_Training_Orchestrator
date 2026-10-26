@@ -24,14 +24,15 @@ R = os.path.join(HERE, "results")
 PUT, GET, GB_MONTH = 0.005 / 1000, 0.0004 / 1000, 0.023
 PART_MB = 8.0
 POLICIES = ["none", "reactive", "periodic_1h", "periodic_grid_15m", "periodic_30m", "young_daly",
-            "model_migrate_q0.1", "hybrid_yd_model_migrate_q0.1", "oracle_migrate"]
+            "model_migrate_q0.1", "hybrid_yd_model_migrate_q0.1", "oracle_migrate", "oracle_migrate_l3"]
 
 
 def main():
     eks = pd.read_csv(os.path.join(R, "trace", "checkpoint_write_eks.csv"))
     big = eks[eks.size_mb >= 512]
     rate = float((big.size_mb / (big.upload_ms / 1000)).mean())
-    runs = pd.concat([pd.read_csv(os.path.join(R, "trace_oct_new", f)) for f in ("runs.csv.gz", "runs_extra.csv.gz")])
+    runs = pd.concat([pd.read_csv(os.path.join(R, "trace_oct_new", f)) for f in ("runs.csv.gz", "runs_extra.csv.gz", "runs_metrics.csv.gz")
+                      if os.path.exists(os.path.join(R, "trace_oct_new", f))])
     runs = runs[(runs.set == "N15") & runs.policy.isin(POLICIES)].drop_duplicates(["policy", "C", "start"])
     rows = []
     for (pol, C), g in runs.groupby(["policy", "C"]):
