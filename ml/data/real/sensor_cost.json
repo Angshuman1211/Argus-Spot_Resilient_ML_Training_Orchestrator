@@ -1,0 +1,56 @@
+{
+ "instances": 345,
+ "instance_hours": 449.52780030111114,
+ "upper_bound_usd_on_demand": 38.11885041058028,
+ "by_type": [
+  {
+   "instance_type": "c5.large",
+   "instances": 51,
+   "hours": 96.289,
+   "od_usd": 8.185
+  },
+  {
+   "instance_type": "c6i.large",
+   "instances": 46,
+   "hours": 73.404,
+   "od_usd": 6.239
+  },
+  {
+   "instance_type": "m5.large",
+   "instances": 87,
+   "hours": 60.53,
+   "od_usd": 5.811
+  },
+  {
+   "instance_type": "m6i.large",
+   "instances": 58,
+   "hours": 37.345,
+   "od_usd": 3.585
+  },
+  {
+   "instance_type": "r5.large",
+   "instances": 24,
+   "hours": 33.809,
+   "od_usd": 4.26
+  },
+  {
+   "instance_type": "r6i.large",
+   "instances": 20,
+   "hours": 30.151,
+   "od_usd": 3.799
+  },
+  {
+   "instance_type": "t3.large",
+   "instances": 16,
+   "hours": 32.0,
+   "od_usd": 2.662
+  },
+  {
+   "instance_type": "t3.medium",
+   "instances": 43,
+   "hours": 86.0,
+   "od_usd": 3.578
+  }
+ ],
+ "note": "us-east-1 On-Demand list prices as an upper bound; Spot is cheaper. EKS cluster and cloud runner not included (billed on the suspended account)."
+}
