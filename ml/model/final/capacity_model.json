@@ -4,18 +4,18 @@
   "age_min"
  ],
  "mean": [
-  2.7188198480107286,
-  52.98902750582253
+  2.7459129407130196,
+  53.49752191761867
  ],
  "scale": [
-  0.688736147397946,
-  33.71465888324546
+  0.6601024286971173,
+  33.70421638175059
  ],
  "coef": [
-  -0.7020323204205929,
-  -0.6873731708698393
+  -0.692623564479589,
+  -0.7116264066395807
  ],
- "intercept": -3.567268398392081,
+ "intercept": -3.678235539795582,
  "ranges": {
   "placement": [
    1.0,
@@ -29,38 +29,43 @@
  "operating_points": [
   {
    "alarm_budget": 0.05,
-   "threshold": 0.2658,
-   "alarm_rate": 0.0501,
-   "recall": 0.436,
-   "precision": 0.438
+   "threshold": 0.257,
+   "alarm_rate": 0.05,
+   "recall": 0.449,
+   "precision": 0.413
   },
   {
    "alarm_budget": 0.1,
-   "threshold": 0.1581,
+   "threshold": 0.121,
    "alarm_rate": 0.1001,
    "recall": 0.56,
-   "precision": 0.281
+   "precision": 0.258
   },
   {
    "alarm_budget": 0.2,
-   "threshold": 0.0507,
-   "alarm_rate": 0.2,
-   "recall": 0.644,
-   "precision": 0.162
+   "threshold": 0.0473,
+   "alarm_rate": 0.2001,
+   "recall": 0.654,
+   "precision": 0.151
   }
  ],
  "trained_on": {
-  "steps": 4474,
-  "positives": 225,
+  "steps": 5077,
+  "positives": 234,
   "regions": [
+   "ap-south-1",
    "ap-southeast-1",
+   "eu-central-1",
    "eu-north-1",
+   "eu-west-1",
    "us-east-1",
-   "us-east-2"
+   "us-east-2",
+   "us-west-2"
   ],
   "days": [
    "2026-10-13",
-   "2026-10-14"
+   "2026-10-14",
+   "2026-10-25"
   ]
  },
  "note": "P(reclaim within 15 min | AWS placement score, instance age in minutes), sensor campaign 13-14 Oct 2026; small instances only, see docs/wide_model_result.md Section 7b"

@@ -63,10 +63,11 @@ def cross_val(d, feats, kind, group_col, n_folds=5, seed=0):
     return pred
 
 
-def forward(d, feats, kind, last_day):
-    """Fit on every day before `last_day`, score only `last_day`: the out-of-time test."""
+def forward(d, feats, kind, first_day):
+    """Fit on the first campaign day only, score every later day: the out-of-time test. (With a short last day,
+    testing on the last day alone left a handful of reclaims and an uninformative interval.)"""
     pred = pd.Series(np.nan, index=d.index)
-    tr, te = d.day < last_day, d.day == last_day
+    tr, te = d.day == first_day, d.day > first_day
     if d.loc[tr, "label"].nunique() == 2 and te.any():
         pred[te] = fit_predict(kind, d.loc[tr, feats].to_numpy(), d.loc[tr, "label"].to_numpy(), d.loc[te, feats].to_numpy())
     return pred
@@ -93,7 +94,7 @@ def main():
     rng = np.random.default_rng(0)
     schemes = [("by_hour", "hour"), ("by_pool", "pool")]
     if "day" in d and d.day.nunique() >= 2:
-        schemes.append(("forward_day", "day"))  # train on every earlier day, test on the last one
+        schemes.append(("forward_day", "day"))  # train on the first day, test on every later day
     if "region" in d and d.region.nunique() >= 2:
         schemes.append(("by_region", "region"))  # hold out a whole region: does it transfer?
     out = {"steps": len(d), "positives": int(d.label.sum()), "pools": int(d.pool.nunique()), "hours": int(d.hour.nunique()),
@@ -101,9 +102,10 @@ def main():
     rows = []
     for scheme, col in schemes:
         if scheme == "forward_day":
-            last = sorted(d.day.unique())[-1]
-            ev = d[d.day == last]
-            out["forward_day_test"] = dict(day=str(last), steps=len(ev), positives=int(ev.label.sum()))
+            last = sorted(d.day.unique())[0]  # the first day: training data for the out-of-time test
+            ev = d[d.day > last]
+            out["forward_day_test"] = dict(train_day=str(last), test_days=[str(x) for x in sorted(ev.day.unique())],
+                                           steps=len(ev), positives=int(ev.label.sum()))
         else:
             ev = d
         for name, feats in FEATURE_SETS.items():
