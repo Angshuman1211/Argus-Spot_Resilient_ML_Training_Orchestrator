@@ -226,16 +226,24 @@ def lead_cdf(leads):
     return (lambda C: float((leads >= C).mean()) if len(leads) else 0.0)
 
 
-def decision_maps(lam_ref, W, R, model_rp, p_lead_fn):
+MAP_RECALL = 0.65  # the trace model (0.69) and the real-reclaim capacity model (0.64) both sit here
+
+
+def decision_maps(lam_ref, W, R, model_rp, p_lead_fn, real_lead_fn=None):
+    """Best policy over checkpoint time x precision (recall fixed at MAP_RECALL), once with the trace model's
+    lead and once with a measured real-reclaim lead distribution, and over checkpoint time x MTBF."""
     Cs = np.exp(np.linspace(math.log(1), math.log(3600), 70))
-    qs = np.linspace(0.02, 1.0, 50)
+    ps = np.linspace(0.02, 1.0, 50)
     mt = np.exp(np.linspace(math.log(600), math.log(30 * 86400), 60))
     a_rows, b_rows = [], []
     for C in Cs:
         pl = p_lead_fn(C)
-        for q in qs:
-            k, v = best_policy(lam_ref, W, C, R, q, q, pl)
-            a_rows.append(dict(C=C, quality=q, best=k, **{f"s_{x}": v[x] for x in v}))
+        for p in ps:
+            k, v = best_policy(lam_ref, W, C, R, MAP_RECALL, p, pl)
+            a_rows.append(dict(C=C, precision=p, lead="trace", best=k, **{f"s_{x}": v[x] for x in v}))
+            if real_lead_fn is not None:
+                k, v = best_policy(lam_ref, W, C, R, MAP_RECALL, p, real_lead_fn(C))
+                a_rows.append(dict(C=C, precision=p, lead="real", best=k, **{f"s_{x}": v[x] for x in v}))
         for m in mt:
             k, v = best_policy(1 / m, W, C, R, model_rp[0], model_rp[1], pl)
             b_rows.append(dict(C=C, mtbf_s=m, best=k, **{f"s_{x}": v[x] for x in v}))
@@ -323,7 +331,12 @@ def main(args):
     with open(os.path.join(OUT, "summary.json"), "w") as f:
         json.dump(summ, f, indent=2)
 
-    a, b = decision_maps(lam, W, R, (r_model, p_model), pl)
+    real_pl = None
+    cap = summ.get("real_reclaim_predictors", {}).get("capacity model, held-out pool")
+    if cap:
+        leads = np.asarray(json.load(open(rq))["predictors"]["capacity model, held-out pool"]["operating"]["leads_min"]) * 60
+        real_pl = lambda C: float((leads >= C).mean())
+    a, b = decision_maps(lam, W, R, (r_model, p_model), pl, real_pl)
     a.to_csv(os.path.join(OUT, "map_quality.csv"), index=False)
     b.to_csv(os.path.join(OUT, "map_mtbf.csv"), index=False)
     print(json.dumps(summ, indent=2))

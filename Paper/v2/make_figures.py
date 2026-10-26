@@ -206,9 +206,62 @@ def fig_regions():
     save(fig, "fig4_regions")
 
 
+# ------------------------------------------------------------------- Figure 5: decision map (analytic model)
+
+def fig_decision_map():
+    import json
+    from matplotlib.colors import ListedColormap
+    from matplotlib.patches import Patch
+    A = os.path.join(R, "analytic")
+    qa = pd.read_csv(os.path.join(A, "map_quality.csv"))
+    mb = pd.read_csv(os.path.join(A, "map_mtbf.csv"))
+    summ = json.load(open(os.path.join(A, "summary.json")))
+    order = ["reactive", "periodic", "predictor", "hybrid"]
+    colors = [GRAY, ORANGE, BLUE, GREEN]
+    cmap = ListedColormap(colors)
+    ref = summ["reference"]
+    real = summ.get("real_reclaim_predictors", {})
+    fig, axes = plt.subplots(1, 3, figsize=(5.5, 2.35), sharex=True)
+    panels = ((axes[0], qa[qa.lead == "trace"], "precision", "precision (recall 0.65)", "(a) warning lead ample"),
+              (axes[1], qa[qa.lead == "real"], "precision", None, "(b) lead of real reclaims"),
+              (axes[2], mb, "mtbf_s", "job MTBF (hours)", "(c) model on the trace"))
+    for ax, d, ycol, ylab, title in panels:
+        xs, ys = np.sort(d.C.unique()), np.sort(d[ycol].unique())
+        z = d.assign(k=d.best.map(order.index)).pivot(index=ycol, columns="C", values="k").reindex(index=ys, columns=xs)
+        yy = ys / 3600 if ycol == "mtbf_s" else ys
+        ax.pcolormesh(xs, yy, z.to_numpy(), cmap=cmap, vmin=-0.5, vmax=3.5, shading="nearest", rasterized=True)
+        ax.set_xscale("log")
+        ax.set_xticks([1, 10, 120, 3600])
+        ax.set_xticklabels(["1", "10", "120", "3600"])
+        ax.axvline(120, color=INK, lw=0.7, ls=":")
+        ax.set_title(title, loc="left", fontsize=8.5)
+        if ylab:
+            ax.set_ylabel(ylab)
+    axes[1].set_yticklabels([])
+    axes[1].set_xlabel("checkpoint time (seconds)")
+    # where the measured predictors sit (both have recall near 0.65)
+    axes[0].axhline(ref["precision"], color=INK, lw=0.8, ls="--")
+    axes[0].text(1.3, ref["precision"] + 0.02, "price model\non price spikes", fontsize=7, va="bottom", linespacing=1.0)
+    cap = real.get("capacity model, held-out pool")
+    if cap:
+        axes[1].axhline(cap["precision"], color=INK, lw=0.8, ls="--")
+        axes[1].text(1.3, cap["precision"] + 0.02, "capacity model\non real reclaims", fontsize=7, va="bottom",
+                     linespacing=1.0)
+    axes[2].set_yscale("log")
+    axes[2].axhline(ref["mtbf_min"] / 60, color=INK, lw=0.8, ls="--")
+    axes[2].text(1.3, ref["mtbf_min"] / 60 * 1.15, "15-node trace", fontsize=7, va="bottom")
+    fig.legend(handles=[Patch(color=c, label=l) for c, l in zip(colors, ["reactive (or none)", "periodic, best interval",
+                                                                           "predictor alarms", "periodic + predictor"])],
+               loc="lower center", ncol=4, frameon=False, bbox_to_anchor=(0.5, -0.08), fontsize=8,
+               handlelength=1.2, columnspacing=1.0)
+    fig.tight_layout(rect=(0, 0.06, 1, 1), w_pad=0.6)
+    save(fig, "fig5_decision_map")
+
+
 if __name__ == "__main__":
     fig_architecture()
     fig_main()
     fig_predictor()
     fig_regions()
+    fig_decision_map()
     print("wrote figures to", OUT)
