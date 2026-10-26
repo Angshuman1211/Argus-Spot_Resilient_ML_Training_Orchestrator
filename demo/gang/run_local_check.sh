@@ -37,15 +37,16 @@ fi
 kubectl get pods -l argus.io/job=gangtest -o wide > "$OUT/before_pods.txt"
 
 pids=()
+# exec in each subshell makes the recorded pid the server itself, so the kill reaches it
 cleanup() { kill "${pids[@]}" 2>/dev/null || true; [ "${KEEP:-0}" = 1 ] || minikube delete -p $PROFILE >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 PYTHONPATH="${MOTO_PATH:-}" "$PY" -m moto.server -p $S3_PORT > "$OUT/moto.log" 2>&1 & pids+=($!)
-(cd operator && MOCK_RISKY_TYPES=t-b MOCK_RISK_SCORE=0.9 "$PY" -m uvicorn controller.mock_predict:app --port $PRED_PORT > "$ROOT/$OUT/predict.log" 2>&1) & pids+=($!)
+(cd operator && exec env MOCK_RISKY_TYPES=t-b MOCK_RISK_SCORE=0.9 "$PY" -m uvicorn controller.mock_predict:app --port $PRED_PORT > "$ROOT/$OUT/predict.log" 2>&1) & pids+=($!)
 sleep 6
 AWS_ENDPOINT_URL=http://127.0.0.1:$S3_PORT "$PY" -c "import boto3; boto3.client('s3').create_bucket(Bucket='argus-local', CreateBucketConfiguration={'LocationConstraint': 'eu-north-1'})"
 
-(cd operator && PREDICT_SERVICE_URL=http://127.0.0.1:$PRED_PORT AWS_ENDPOINT_URL=http://127.0.0.1:$S3_PORT \
+(cd operator && exec env PREDICT_SERVICE_URL=http://127.0.0.1:$PRED_PORT AWS_ENDPOINT_URL=http://127.0.0.1:$S3_PORT \
   POLL_INTERVAL_SECONDS=15 CHECKPOINT_WAIT_SECONDS=10 RECREATE_WAIT_SECONDS=60 METRICS_PORT=18080 \
   "$PY" -m controller.main > "$ROOT/$OUT/operator.log" 2>&1) & pids+=($!)
 sleep 8
