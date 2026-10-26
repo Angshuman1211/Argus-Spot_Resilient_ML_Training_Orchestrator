@@ -1,0 +1,60 @@
+{
+  "trace": {
+    "1": {
+      "independent": 0.0017191898507753118,
+      "observed": 0.0017191898507753,
+      "ratio": 0.9999999999999836,
+      "events_per_kill_step": 1.0
+    },
+    "5": {
+      "independent": 0.007026453531459226,
+      "observed": 0.006606594303464925,
+      "ratio": 0.9516002838759435,
+      "events_per_kill_step": 1.0568887634105024
+    },
+    "15": {
+      "independent": 0.02556113372820057,
+      "observed": 0.0199764982373678,
+      "ratio": 0.7815184744848988,
+      "events_per_kill_step": 1.2941176470588236
+    }
+  },
+  "real": {
+    "ap-southeast-1": {
+      "reclaims": 13,
+      "windows": 29,
+      "mean": 0.4482758620689655,
+      "var": 0.6133004926108377,
+      "dispersion": 1.3681318681318688,
+      "reclaims_sharing_window_with_other_pool": 7
+    },
+    "eu-north-1": {
+      "reclaims": 115,
+      "windows": 85,
+      "mean": 1.3529411764705883,
+      "var": 1.826330532212885,
+      "dispersion": 1.3498964803312627,
+      "reclaims_sharing_window_with_other_pool": 81
+    },
+    "us-east-1": {
+      "reclaims": 11,
+      "windows": 28,
+      "mean": 0.39285714285714285,
+      "var": 0.3214285714285715,
+      "dispersion": 0.8181818181818185,
+      "reclaims_sharing_window_with_other_pool": 2
+    },
+    "us-east-2": {
+      "reclaims": 19,
+      "windows": 31,
+      "mean": 0.6129032258064516,
+      "var": 0.7118279569892472,
+      "dispersion": 1.1614035087719297,
+      "reclaims_sharing_window_with_other_pool": 8
+    },
+    "all": {
+      "reclaims": 158,
+      "share_with_other_pool": 0.620253164556962
+    }
+  }
+}
