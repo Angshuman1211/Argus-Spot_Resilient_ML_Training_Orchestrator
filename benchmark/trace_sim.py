@@ -119,6 +119,7 @@ class Policy:
     thr: float = INF             # alarm threshold; per-node-step probability (random); recall (synthetic)
     action: str = "migrate"      # ckpt | migrate
     fa: float = 0.0              # synthetic: false-alarm probability per node-step
+    lead: int = 1                # oracle: steps of perfect warning (1 = 5 minutes)
 
 
 def young_daly_tau(C, mtbf):
@@ -161,6 +162,8 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
     mode, mode_end, migrating, drain = "run", INF, None, False
     last_alarm = np.full(n, -INF)
     prot = np.full(n, -1.0)
+    prot_mid = np.full(n, -1)    # which migration protects each node, to count the ones that saved a kill
+    useful = set()
     last_ckpt_start = t
     next_dec = math.ceil(t / STEP) * STEP
 
@@ -169,7 +172,12 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
     ni = bisect.bisect_left(notice_times, t - 1e-9)
 
     out = dict(wasted=0.0, n_ckpt=0, n_migr=0, kills=0, avoided=0, alarms=0, dropped=0,
-               ckpt_time=0.0, restart_time=0.0, completed=False, makespan=float("nan"))
+               ckpt_time=0.0, restart_time=0.0, completed=False, makespan=float("nan"), false_migr=0)
+
+    def finish(**kw):
+        out.update(kw)
+        out["false_migr"] = out["n_migr"] - len(useful)  # migrations that never kept a node from a kill
+        return out
 
     def start_ckpt(nodes=None, is_drain=False):
         nonlocal mode, mode_end, snapshot, last_ckpt_start, migrating, drain
@@ -185,14 +193,12 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
             cands.append(max(t, notice_times[ni]))
         t_next = min(cands)
         if t_next > T_end:
-            out["work_done"] = work
-            return out
+            return finish(work_done=work)
         if mode == "run":
             work += t_next - t
         t = t_next
         if mode == "run" and work >= W - 1e-6:
-            out.update(completed=True, makespan=t - t_start, work_done=W)
-            return out
+            return finish(completed=True, makespan=t - t_start, work_done=W)
 
         # 1. a checkpoint or restart finishes
         if mode != "run" and t >= mode_end - 1e-9:
@@ -205,6 +211,7 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
                     out["restart_time"] += R
                     for j in migrating:
                         prot[j] = t + R + protect
+                        prot_mid[j] = out["n_migr"]
                     mode, mode_end, migrating = "restart", t + R, None
                 elif drain:
                     # reactive path: the node is being drained after the flush, so the
@@ -224,6 +231,7 @@ def simulate(fleet, pol, start_i, W, C, R, notice=120.0, cooldown=HORIZON_STEPS 
             for j in np.flatnonzero(fleet.spike[:, i]):
                 if prot[j] >= t:
                     out["avoided"] += 1
+                    useful.add(int(prot_mid[j]))
                 else:
                     killed = True
             if killed:
@@ -272,8 +280,9 @@ def _alarmed(fleet, pol, i, t, last_alarm, cooldown, rng):
     elif pol.kind == "random":
         hit = rng.random(fleet.n) < pol.thr
     elif pol.kind == "oracle":
-        # perfect foresight with the minimum 5-minute lead: the old benchmark's assumption
-        hit = fleet.spike[:, i + 1] if i + 1 < fleet.L else np.zeros(fleet.n, bool)
+        # perfect foresight `lead` steps ahead (1 step, 5 minutes, was the old benchmark's assumption)
+        k = i + pol.lead
+        hit = fleet.spike[:, k] if k < fleet.L else np.zeros(fleet.n, bool)
     else:
         return np.array([], dtype=int)
     ok = hit & (t - last_alarm >= cooldown)

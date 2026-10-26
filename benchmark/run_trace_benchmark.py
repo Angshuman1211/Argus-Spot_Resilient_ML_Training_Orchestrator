@@ -66,6 +66,8 @@ def policies_for(calib, C, W, prefix=None):
         Policy("advisor_young_daly", "periodic", tau=ts.young_daly_tau(C, ts.advisor_mtbf(calib))),
         Policy("reactive", "reactive"),
         Policy("oracle_migrate", "oracle", action="migrate"),
+        Policy("oracle_migrate_l2", "oracle", action="migrate", lead=2),  # 10 minutes of perfect warning
+        Policy("oracle_migrate_l3", "oracle", action="migrate", lead=3),  # 15 minutes
     ]
     for q in BUDGETS:
         pols.append(Policy(f"model_migrate_q{q}", "signal", signal="risk",
@@ -96,6 +98,17 @@ def policies_for(calib, C, W, prefix=None):
     elif prefix:
         pols = [p for p in pols if p.name.startswith(tuple(prefix.split(",")))]
     return pols
+
+
+def wilson(k, n, z=1.96):
+    """95% Wilson score interval for k successes in n trials."""
+    if n == 0:
+        return float("nan"), float("nan")
+    p = k / n
+    d = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / d
+    h = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return float(c - h), float(c + h)
 
 
 def bootstrap_ci(df, col, rng, n_boot=400):
@@ -166,11 +179,13 @@ def run(args):
     for (N, C, pol), g in runs.groupby(["N", "C", "policy"]):
         done = g[g.completed]
         lo, hi = bootstrap_ci(done, "slowdown", rng) if len(done) else (np.nan, np.nan)
+        clo, chi = wilson(int(g.completed.sum()), len(g))
         rows.append(dict(
-            N=N, C_s=C, policy=pol, runs=len(g), completion=g.completed.mean(),
+            N=N, C_s=C, policy=pol, runs=len(g), completion=g.completed.mean(), completion_lo=clo, completion_hi=chi,
             slowdown=done.slowdown.mean(), slowdown_lo=lo, slowdown_hi=hi,
             wasted_frac=g.wasted_frac.mean(), kills=g.kills.mean(), avoided=g.avoided.mean(),
             n_ckpt=g.n_ckpt.mean(), n_migr=g.n_migr.mean(), alarms=g.alarms.mean(),
+            false_migr=g.false_migr.mean() if "false_migr" in g else np.nan,
             cost_savings_pct=done.cost_savings_pct.mean(),
         ))
     summary = pd.DataFrame(rows)

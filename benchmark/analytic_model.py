@@ -7,21 +7,23 @@ Quantities (all in seconds of wall time):
   C      checkpoint time, R restart time, n = 120 s notice
   r, p   predictor recall and precision against reclaims; alarms arrive at rate a = r * lam / p
   lead   how far ahead the predictor warns; an alarm saves the job only if the checkpoint
-         finishes first, so useful recall is r_eff = r * P(lead >= C)   (the lead-time rule)
+         finishes first, so useful recall is r_eff = r * P(lead >= C)   (the lead-time rule).
+         A true alarm that comes too late leaves no checkpoint either, so only a_ok = a - lam (r - r_eff)
+         alarms per second end in a durable checkpoint (false alarms do, since no reclaim interrupts them)
 
 First-order slowdown (makespan / work), each the inverse of the useful fraction of wall time:
   none       (1/lam + R) (exp(lam W) - 1) / W                       restart from scratch
   periodic   (1 + C/tau) / (1 - lam ((tau + C)/2 + R))               Young-Daly optimum near sqrt(2 C / lam)
   reactive   1 / (1 - lam (n + R))          if C <= n, else none    flush on the notice, idle, restart
-  predictor  1 / (1 - a (C + R) - lam (1 - r_eff) (1/b + R))         every alarm migrates; a miss loses
-             with b = a + lam (1 - r_eff)                             the work since the last alarm or restart
+  predictor  1 / (1 - a_ok (C + R) - lam (1 - r_eff) (1/b + R))      every alarm migrates; a miss loses
+             with b = a_ok + lam (1 - r_eff)                          the work since the last alarm or restart
   hybrid     periodic tau underneath the predictor: a miss loses min(periodic age, alarm age),
              E = (1 - exp(-b tau)) / b, plus C / tau of checkpoint overhead
+  oracle     1 / (1 - lam (C + R))  while C <= lead, else as no protection
 
 The slowdown is convex in lam, and real reclaims cluster in time, so the check against the simulator
 evaluates each formula at the reclaim rate of every job's own window and averages over jobs, as the
 simulator does. Evaluated at the long-run mean rate it understates loss when rates swing day to day.
-  oracle     1 / (1 - lam (C + R))
 
     python benchmark/analytic_model.py            # validation + decision map, results/analytic/
 """
@@ -77,12 +79,14 @@ def s_reactive(lam, W, C, R, notice=NOTICE):
 def s_predictor(lam, C, R, r, p, p_lead=1.0):
     if r <= 0 or p <= 0:
         return BIG
-    return s_predictor_rate(lam, C, R, r * lam / p, r * p_lead)
+    r_eff = r * p_lead
+    return s_predictor_rate(lam, C, R, r * lam / p - lam * (r - r_eff), r_eff)
 
 
 def s_predictor_rate(lam, C, R, a, r_eff):
-    """Same, from the alarm rate itself. The work lost on a miss is its age since the last durable state,
-    which an alarm or a restart after an earlier miss resets: mean 1 / (a + lam (1 - r_eff))."""
+    """Same, from the rate `a` of alarms that end in a durable checkpoint. The work lost on a miss is its age
+    since the last durable state, which such an alarm or a restart after an earlier miss resets:
+    mean 1 / (a + lam (1 - r_eff))."""
     b = a + lam * (1.0 - r_eff)
     if b <= 0:
         return 1.0
@@ -93,8 +97,8 @@ def s_predictor_rate(lam, C, R, a, r_eff):
 def s_hybrid(lam, C, R, r, p, tau, p_lead=1.0):
     if r <= 0 or p <= 0:
         return s_periodic(lam, C, R, tau)
-    a = r * lam / p
     r_eff = r * p_lead
+    a = r * lam / p - lam * (r - r_eff)  # alarms that end in a durable checkpoint
     b = a + lam * (1.0 - r_eff)
     age = (1.0 - math.exp(-b * tau)) / b
     lost = a * (C + R) + lam * (1.0 - r_eff) * (age + R)
@@ -309,6 +313,24 @@ def main(args):
                 break
         need.append(dict(C=C, quality_needed=q_need))
     summ["quality_needed"] = need
+    # the lead rule in the simulator: an oracle warned `lead` ahead protects the job only while C <= lead
+    lr_path = os.path.join(HERE, "results", "trace_oct_new", "summary_leadrule.csv")
+    if os.path.exists(lr_path):
+        lr = pd.read_csv(lr_path)
+        lr = lr[(lr.N == 15) & lr.policy.str.startswith("oracle_migrate")]
+        none = s_none(lam, W, R)
+        cells, agree, errs = 0, 0, []
+        for _, row in lr.iterrows():
+            lead = 300.0 * (int(row.policy.split("_l")[-1]) if "_l" in row.policy else 1)
+            predicted_ok = row.C_s <= lead
+            sim_ok = row.slowdown < 2.0  # protected jobs stay near 1, unprotected ones near no protection
+            cells += 1
+            agree += int(predicted_ok == sim_ok)
+            if predicted_ok:
+                errs.append(abs(s_oracle(lam, row.C_s, R) - row.slowdown) / row.slowdown)
+        summ["lead_rule"] = dict(cells=cells, agree=agree, median_rel_err_protected=float(np.median(errs)),
+                                 no_protection_mean_rate=none)
+
     # the predictors measured on REAL reclaims (ml/model/real_label_quality.py): recall, precision and lead
     # distribution at a 10% alarm budget, put through the same formulas at the reference reclaim rate
     rq = os.path.join(HERE, "..", "ml", "model", "wide_results", "reclaim_quality.json")
