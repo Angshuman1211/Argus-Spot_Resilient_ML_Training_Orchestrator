@@ -33,7 +33,8 @@ OUT = os.path.join(HERE, "results", "trace")
 
 BUDGETS = [0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2]
 CKPT_ONLY_BUDGETS = [0.002, 0.01, 0.05, 0.1]
-HYBRID_BUDGETS = [0.002, 0.01, 0.05]
+HYBRID_BUDGETS = [0.002, 0.01, 0.05, 0.1, 0.2]
+PERIODIC_GRID_MIN = [10, 15, 30, 60, 120, 240]  # fixed intervals, so "periodic" is a tuned family, not one guess
 SYN_RECALL = [0.2, 0.5, 0.8, 0.95]
 SYN_PRECISION = [0.05, 0.1, 0.3, 0.6, 0.9]
 OD_PRICE = {"m5.xlarge": 0.204, "m5.2xlarge": 0.408, "c5.xlarge": 0.188,
@@ -58,6 +59,9 @@ def policies_for(calib, C, W, prefix=None):
         Policy("none", "none"),
         Policy("periodic_30m", "periodic", tau=1800.0),
         Policy("periodic_1h", "periodic", tau=3600.0),
+    ]
+    pols += [Policy(f"periodic_grid_{m}m", "periodic", tau=60.0 * m) for m in PERIODIC_GRID_MIN]
+    pols += [
         Policy("young_daly", "periodic", tau=ts.young_daly_tau(C, mtbf_calib)),
         Policy("advisor_young_daly", "periodic", tau=ts.young_daly_tau(C, ts.advisor_mtbf(calib))),
         Policy("reactive", "reactive"),
@@ -90,7 +94,7 @@ def policies_for(calib, C, W, prefix=None):
         keep = ("none", "reactive", "periodic_1h", "young_daly", "model_", "oracle")
         pols = [p for p in pols if p.name.startswith(keep)]
     elif prefix:
-        pols = [p for p in pols if p.name.startswith(prefix)]
+        pols = [p for p in pols if p.name.startswith(tuple(prefix.split(",")))]
     return pols
 
 
@@ -199,7 +203,7 @@ if __name__ == "__main__":
                     help="slice the jobs run on; thresholds always come from the calibration slice")
     ap.add_argument("--only-sets", default=None, help="comma list, e.g. N15")
     ap.add_argument("--quick", action="store_true")
-    ap.add_argument("--arms-prefix", default=None, help="only run policies whose name starts with this")
+    ap.add_argument("--arms-prefix", default=None, help="only run policies whose name starts with this (comma list)")
     ap.add_argument("--tag", default="", help="suffix for output files, e.g. synth")
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--work-hours", type=float, default=12.0)
