@@ -46,6 +46,13 @@ spec:
                   items:
                     type: string
                   description: Ordered list of fallback instance types if current node is evicted
+                gang:
+                  type: boolean
+                  default: false
+                  description: >-
+                    Synchronous multi-node job: every pod labelled argus.io/job=<name> is one member. The risk of
+                    each member's node is read, and when any crosses the threshold all members are flushed once,
+                    deleted and recreated together, and only the risky nodes are cordoned
             status:
               type: object
               properties:
@@ -74,6 +81,19 @@ spec:
                   nullable: true
                   x-kubernetes-preserve-unknown-fields: true
                   description: Cleaned manifest of the training pod, used to recreate it after a migration
+                podSnapshots:
+                  type: array
+                  nullable: true
+                  items:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  description: Gang jobs only, one cleaned manifest per member
+                cordonedNodes:
+                  type: array
+                  nullable: true
+                  items:
+                    type: string
+                  description: Gang jobs only, the nodes this operator cordoned and has not yet released
                 phase:
                   type: string
                   enum: [Pending, Running, Checkpointing, Migrating, Succeeded, Completed, Failed]

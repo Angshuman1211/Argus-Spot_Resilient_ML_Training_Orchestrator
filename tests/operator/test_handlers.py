@@ -321,3 +321,103 @@ def test_price_signal_is_the_default_and_uses_predict(env):
     handlers.reconcile(spec=_spec(), name="job", namespace="default", status={}, patch=_patch())
     assert env.http_get.call_args.args[0].endswith("/predict")
     env.get_node_info.assert_not_called()
+
+
+# ------------------------------------------------------------------------------------------- gang jobs
+
+def _member(name, node, phase="Running"):
+    return SimpleNamespace(metadata=SimpleNamespace(name=name), status=SimpleNamespace(phase=phase),
+                           spec=SimpleNamespace(node_name=node))
+
+
+def _gang_spec(threshold=0.05):
+    spec = _spec(threshold)
+    spec["gang"] = True
+    return spec
+
+
+def _snap(name):
+    return {"apiVersion": "v1", "kind": "Pod", "metadata": {"name": name, "namespace": "default"}, "spec": {}}
+
+
+@pytest.fixture
+def gang(env):
+    env.list_job_pods.return_value = [_member("job-0", "node-a"), _member("job-1", "node-b"), _member("job-2", "node-c")]
+    env.snapshot_pod.side_effect = lambda n, ns: _snap(n)
+    # only node-b is risky
+    env.get_node_info.side_effect = lambda node: {"instance_type": f"type-{node}", "zone": "eu-north-1a", "age_min": 5.0}
+    env.http_get.side_effect = lambda url, params, timeout: _risk(0.5 if params["instance_type"] == "type-node-b" else 0.001)
+    return env
+
+
+def test_gang_reads_every_member_node(gang):
+    patch = _patch()
+    handlers.reconcile(spec=_gang_spec(threshold=0.9), name="job", namespace="default", status={}, patch=patch)
+    asked = sorted(c.kwargs["params"]["instance_type"] for c in gang.http_get.call_args_list)
+    assert asked == ["type-node-a", "type-node-b", "type-node-c"]
+    assert patch.status["lastRiskScore"] == 0.5
+    assert _call_names(gang) == []
+
+
+def test_gang_moves_every_member_after_one_flush(gang):
+    patch = _patch()
+    handlers.reconcile(spec=_gang_spec(), name="job", namespace="default", status={}, patch=patch)
+    order = _call_names(gang)
+    assert order.count("trigger") == 1 and order.count("wait") == 1
+    assert order.index("wait") < order.index("reschedule_pod")
+    deleted = [c.args[0] for c in gang.reschedule_pod.call_args_list]
+    recreated = [c.args[0]["metadata"]["name"] for c in gang.recreate_pod.call_args_list]
+    assert deleted == recreated == ["job-0", "job-1", "job-2"]
+    assert order.index("reschedule_pod") < order.index("recreate_pod")  # all deleted before any comes back
+
+
+def test_gang_cordons_only_the_risky_node(gang):
+    patch = _patch()
+    handlers.reconcile(spec=_gang_spec(), name="job", namespace="default", status={}, patch=patch)
+    assert [c.args[0] for c in gang.cordon_node.call_args_list] == ["node-b"]
+    assert patch.status["cordonedNodes"] == ["node-b"]
+    assert len(patch.status["podSnapshots"]) == 3
+
+
+def test_gang_respects_the_cooldown(gang):
+    status = {"lastMigrationAt": __import__("time").time() - 60}
+    handlers.reconcile(spec=_gang_spec(), name="job", namespace="default", status=status, patch=_patch())
+    assert _call_names(gang) == []
+
+
+def test_gang_recreates_missing_members_on_a_later_poll(gang):
+    gang.list_job_pods.return_value = [_member("job-0", "node-d")]
+    status = {"podSnapshots": [_snap("job-0"), _snap("job-1"), _snap("job-2")]}
+    handlers.reconcile(spec=_gang_spec(), name="job", namespace="default", status=status, patch=_patch())
+    assert sorted(c.args[0]["metadata"]["name"] for c in gang.recreate_pod.call_args_list) == ["job-1", "job-2"]
+    gang.trigger.assert_not_called()  # no new migration while the gang is incomplete
+
+
+def test_gang_uncordons_once_every_member_runs_elsewhere(gang):
+    gang.list_job_pods.return_value = [_member("job-0", "node-d"), _member("job-1", "node-e"), _member("job-2", "node-a")]
+    gang.http_get.side_effect = lambda url, params, timeout: _risk(0.001)
+    status = {"cordonedNodes": ["node-b"], "cordonedAt": __import__("time").time(),
+              "podSnapshots": [_snap("job-0"), _snap("job-1"), _snap("job-2")]}
+    patch = _patch()
+    handlers.reconcile(spec=_gang_spec(), name="job", namespace="default", status=status, patch=patch)
+    gang.uncordon_node.assert_called_once_with("node-b")
+    assert patch.status["cordonedNodes"] is None
+
+
+def test_gang_keeps_cordon_while_a_member_is_not_back(gang):
+    gang.list_job_pods.return_value = [_member("job-0", "node-d"), _member("job-1", "node-e"),
+                                       _member("job-2", None, phase="Pending")]
+    gang.http_get.side_effect = lambda url, params, timeout: _risk(0.001)
+    status = {"cordonedNodes": ["node-b"], "cordonedAt": __import__("time").time(),
+              "podSnapshots": [_snap("job-0"), _snap("job-1"), _snap("job-2")]}
+    handlers.reconcile(spec=_gang_spec(), name="job", namespace="default", status=status, patch=_patch())
+    gang.uncordon_node.assert_not_called()
+
+
+def test_gang_capacity_signal_uses_reclaim_risk(gang):
+    spec = _gang_spec(threshold=0.16)
+    spec["riskSignal"] = "capacity"
+    gang.http_get.side_effect = lambda url, params, timeout: _reclaim(0.01)
+    handlers.reconcile(spec=spec, name="job", namespace="default", status={}, patch=_patch())
+    assert all(c.args[0].endswith("/reclaim_risk") for c in gang.http_get.call_args_list)
+    assert len(gang.http_get.call_args_list) == 3

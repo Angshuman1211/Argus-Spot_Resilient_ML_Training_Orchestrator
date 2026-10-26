@@ -7,6 +7,8 @@ its acknowledgement, cordon the node, delete the pod and recreate it from a snap
 Checkpoint handshake (see trigger_s3_checkpoint): the operator writes a fresh id to _FLUSH_TRIGGER, the
 pod saves model.pt and writes the same id to _FLUSH_ACK. This keeps the operator decoupled from the
 training process internals and needs no s3:DeleteObject.
+
+Gang jobs (spec.gang: true, see _reconcile_gang) move all pods of a synchronous multi-node job together.
 """
 
 import logging
@@ -192,6 +194,9 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
         job_completion_count.labels(job_name=name).inc()
         logger.info(f"[RECONCILE] '{name}' job completed successfully")
         return
+    if spec.get("gang"):
+        _reconcile_gang(spec, name, namespace, status, patch, pods)
+        return
     _maybe_uncordon(name, status, patch, pods)
 
     # A migration deleted the pod but could not recreate it yet (old pod still terminating)
@@ -313,3 +318,135 @@ def reconcile(spec, name, namespace, status, patch, **kwargs):
     patch.status["retryCount"] = 0
     patch.status["lastMigrationAt"] = time.time()
     logger.info(f"[RECONCILE] '{name}' migration complete - back to Running")
+
+
+# ------------------------------------------------------------------------------------------- gang jobs
+# A synchronous multi-node job (spec.gang: true) is one SpotResilientJob with several pods labelled
+# argus.io/job=<name>. A reclaim of any node stops all of them, so they are moved together: one flush,
+# then every pod is deleted and recreated and the whole job resumes from the same checkpoint. Only the
+# nodes whose risk crossed the threshold are cordoned; the rest stay usable for the replacements.
+
+
+def _node_risk(signal, node, spec):
+    """Risk score of one node from the prediction service, or None if it cannot be read."""
+    info = scheduler.get_node_info(node)
+    instance_type = info["instance_type"] or spec["instanceFallback"][0]
+    az = info["zone"] or spec.get("availabilityZone", DEFAULT_AZ)
+    if signal == "capacity":
+        if info["age_min"] is None:
+            raise ValueError(f"node '{node}' has no creation time")
+        r = httpx.get(f"{PREDICT_SERVICE_URL}/reclaim_risk",
+                      params={"instance_type": instance_type, "az": az, "instance_age_min": round(info["age_min"], 2)},
+                      timeout=10.0)
+        r.raise_for_status()
+        return r.json()["reclaim_risk"], instance_type, az
+    r = httpx.get(f"{PREDICT_SERVICE_URL}/predict", params={"instance_type": instance_type, "az": az}, timeout=10.0)
+    r.raise_for_status()
+    return r.json()["risk_score"], instance_type, az
+
+
+def _gang_uncordon(name, status, patch, pods):
+    nodes = status.get("cordonedNodes") or []
+    if not nodes:
+        return
+    expected = len(status.get("podSnapshots") or []) or 1
+    running_elsewhere = [p for p in pods if p.status.phase == "Running" and p.spec.node_name not in nodes]
+    timed_out = time.time() - float(status.get("cordonedAt", 0)) > UNCORDON_AFTER_SECONDS
+    if len(running_elsewhere) < expected and not timed_out:
+        return
+    left = []
+    for node in nodes:
+        try:
+            scheduler.uncordon_node(node)
+        except Exception as e:
+            logger.warning(f"[GANG] '{name}' uncordon of '{node}' failed: {e}")
+            left.append(node)
+    patch.status["cordonedNodes"] = left or None
+    if not left:
+        patch.status["cordonedAt"] = None
+
+
+def _reconcile_gang(spec, name, namespace, status, patch, pods):
+    _gang_uncordon(name, status, patch, pods)
+
+    # recreate members a migration deleted but could not recreate yet
+    snapshots = status.get("podSnapshots") or []
+    present = {p.metadata.name for p in pods}
+    missing = [s for s in snapshots if s["metadata"]["name"] not in present]
+    if missing:
+        for s in missing:
+            try:
+                scheduler.recreate_pod(s, namespace)
+            except Exception as e:
+                logger.error(f"[GANG] '{name}' could not recreate '{s['metadata']['name']}': {e}")
+        return
+
+    threshold = spec.get("riskThreshold", RISK_THRESHOLD_DEFAULT)
+    signal = spec.get("riskSignal", "price")
+    risks = {}
+    for p in pods:
+        node = p.spec.node_name
+        if not node or node in risks:
+            continue
+        try:
+            risks[node] = _node_risk(signal, node, spec)
+        except Exception as e:
+            predict_failures.labels(job_name=name).inc()
+            logger.warning(f"[GANG] '{name}' - {signal} risk of node '{node}' unavailable: {e}")
+    if not risks:
+        return
+    worst = max(risks, key=lambda n: risks[n][0])
+    score, instance_type, az = risks[worst]
+    patch.status["lastRiskScore"] = score
+    risk_score_gauge.labels(job_name=name, instance_type=instance_type, az=az).set(score)
+    risky = sorted(n for n, (s, _, _) in risks.items() if s > threshold)
+    logger.info(f"[GANG] '{name}' | {len(pods)} pods on {len(risks)} nodes | max risk={score:.4f} "
+                f"threshold={threshold} | risky nodes={risky}")
+    if not risky:
+        return
+    since = time.time() - float(status.get("lastMigrationAt", 0))
+    if since < MIGRATION_COOLDOWN_SECONDS:
+        logger.info(f"[GANG] '{name}' risk above threshold but migrated {since:.0f}s ago - cooling down")
+        return
+
+    try:
+        trigger_id = trigger_s3_checkpoint(name, spec["checkpointPath"])
+        patch.status["lastCheckpointStep"] = status.get("lastCheckpointStep", 0) + 1
+        checkpoint_count.labels(job_name=name).inc()
+    except Exception as e:
+        logger.error(f"[GANG] '{name}' checkpoint trigger failed: {e}")
+        patch.status["phase"] = "Failed"
+        return
+    if wait_for_checkpoint_flush(spec["checkpointPath"], trigger_id):
+        logger.info(f"[GANG] '{name}' checkpoint confirmed on S3")
+    else:
+        checkpoint_wait_timeouts.labels(job_name=name).inc()
+        logger.warning(f"[GANG] '{name}' checkpoint not confirmed - moving anyway, relying on SIGTERM handlers")
+    try:
+        sqs_publisher.publish_risk_event(job_name=name, risk_score=score, instance_type=instance_type, az=az,
+                                         action="checkpoint_and_migrate_gang")
+    except Exception as e:
+        logger.warning(f"[GANG] '{name}' SQS publish failed (non-fatal): {e}")
+
+    try:
+        snaps = [s for s in (scheduler.snapshot_pod(p.metadata.name, namespace) for p in pods) if s] or snapshots
+        patch.status["podSnapshots"] = snaps
+        for node in risky:
+            scheduler.cordon_node(node)
+        patch.status["cordonedNodes"] = sorted(set(status.get("cordonedNodes") or []) | set(risky))
+        patch.status["cordonedAt"] = time.time()
+        for p in pods:  # every member restarts, so the job resumes from one consistent checkpoint
+            scheduler.reschedule_pod(p.metadata.name, namespace, spec["instanceFallback"])
+    except Exception as e:
+        logger.error(f"[GANG] '{name}' move failed: {e}")
+        patch.status["phase"] = "Failed"
+        return
+    for s in snaps:
+        try:
+            scheduler.recreate_pod(s, namespace, wait_seconds=RECREATE_WAIT_SECONDS)
+        except Exception as e:  # the next reconcile recreates the missing members from status.podSnapshots
+            logger.warning(f"[GANG] '{name}' recreate of '{s['metadata']['name']}' failed, will retry: {e}")
+    patch.status["phase"] = "Running"
+    patch.status["retryCount"] = 0
+    patch.status["lastMigrationAt"] = time.time()
+    logger.info(f"[GANG] '{name}' moved all {len(pods)} pods, cordoned {risky}")
