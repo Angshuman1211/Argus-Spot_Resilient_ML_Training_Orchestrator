@@ -59,6 +59,8 @@ spec:
           value: "30"           # interrupt mid-training for the migration demo
         - name: PYTHONUNBUFFERED # stream train.py logs live (no buffering)
           value: "1"
+        - name: GRACE_PERIOD_SECONDS # = terminationGracePeriodSeconds; train.py warns if a save would not fit
+          value: "90"
       resources:
         requests:
           cpu: "500m"

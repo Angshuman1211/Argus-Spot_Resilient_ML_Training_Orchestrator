@@ -47,6 +47,19 @@ DOWNLOAD_RETRIES = int(os.environ.get("DOWNLOAD_RETRIES", "5"))
 # How often (in wall-clock seconds) the training loop looks for an operator flush request. Polling every N
 # batches made the latency depend on batch time: with a large model the operator timed out before the pod looked.
 FLUSH_POLL_SECONDS = float(os.environ.get("FLUSH_POLL_SECONDS", "5"))
+# The pod's terminationGracePeriodSeconds (Kubernetes does not expose it to the container, so the manifest
+# passes it). A SIGTERM flush that takes longer is cut off by SIGKILL, so every save is checked against it.
+GRACE_PERIOD_SECONDS = float(os.environ.get("GRACE_PERIOD_SECONDS", "0"))
+
+
+def check_grace_period(save_seconds):
+    """Warns when a full save (serialise + upload) would not fit in the SIGTERM grace period. Returns True if it fits."""
+    if GRACE_PERIOD_SECONDS <= 0 or save_seconds <= GRACE_PERIOD_SECONDS:
+        return True
+    print(f"WARNING: this checkpoint took {save_seconds:.0f} s, longer than the {GRACE_PERIOD_SECONDS:.0f} s grace "
+          f"period: a SIGTERM flush would be killed before it finished. Rely on predictive or periodic "
+          f"checkpoints, or raise terminationGracePeriodSeconds (the Spot notice still caps it at 120 s).", flush=True)
+    return False
 
 
 def save_checkpoint(model, optimizer, epoch, completed):
@@ -65,6 +78,7 @@ def save_checkpoint(model, optimizer, epoch, completed):
     about 18 s and the copied object then failed ETag validation on download. Do not reintroduce it.)
     """
     print(f"Saving checkpoint (epoch {epoch}, completed={completed}) -> s3://{S3_BUCKET}/{S3_PREFIX}")
+    t_start = time.time()
     torch.save(
         {
             "epoch": epoch,
@@ -81,6 +95,7 @@ def save_checkpoint(model, optimizer, epoch, completed):
             s3_client.upload_file(LOCAL_CHECKPOINT_PATH, S3_BUCKET, S3_PREFIX)
             print(f"Checkpoint uploaded: {size_mb:.1f} MB in {time.time() - t0:.1f} s "
                   f"({size_mb / max(time.time() - t0, 1e-6):.1f} MB/s)", flush=True)
+            check_grace_period(time.time() - t_start)
             return True
         except Exception as e:
             print(f"Checkpoint upload failed (attempt {attempt}/{UPLOAD_RETRIES}): {e}")

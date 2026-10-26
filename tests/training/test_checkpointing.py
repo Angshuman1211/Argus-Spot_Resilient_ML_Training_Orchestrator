@@ -210,3 +210,20 @@ def test_flush_polling_is_by_wall_clock_not_by_batch_count(job):
     import inspect
     src = inspect.getsource(job.main)
     assert "FLUSH_POLL_SECONDS" in src and "i % 100" not in src
+
+
+def test_grace_period_check_warns_only_when_a_save_would_not_fit(job, monkeypatch, capsys):
+    monkeypatch.setattr(job, "GRACE_PERIOD_SECONDS", 90.0)
+    assert job.check_grace_period(30.0) is True
+    assert job.check_grace_period(120.0) is False
+    assert "longer than the 90 s grace period" in capsys.readouterr().out
+    monkeypatch.setattr(job, "GRACE_PERIOD_SECONDS", 0.0)  # unset: never warns
+    assert job.check_grace_period(1e6) is True
+
+
+def test_every_save_is_checked_against_the_grace_period(job, monkeypatch):
+    seen = []
+    monkeypatch.setattr(job, "check_grace_period", lambda s: seen.append(s) or True)
+    model, opt = _fresh(job)
+    assert job.save_checkpoint(model, opt, 1, completed=True)
+    assert len(seen) == 1 and seen[0] >= 0

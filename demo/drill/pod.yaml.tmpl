@@ -35,6 +35,7 @@ spec:
         - {name: EPOCHS, value: "${EPOCHS}"}
         - {name: EXTRA_PARAMS_MB, value: "${EXTRA_MB}"}
         - {name: PYTHONUNBUFFERED, value: "1"}
+        - {name: GRACE_PERIOD_SECONDS, value: "90"}  # = terminationGracePeriodSeconds above
       resources:
         requests: {cpu: "500m", memory: 2Gi}
         limits: {memory: 6Gi}

@@ -1,0 +1,95 @@
+{
+  "pod_poll_s": 5.0,
+  "operator_poll_s": 2.0,
+  "handshake_extra_s": {
+    "mean": 3.495840800565496,
+    "p95": 5.984735924713281,
+    "max": 7.0
+  },
+  "measured_rate_mb_s": 114.30187466905086,
+  "drills": {
+    "drill-small": {
+      "ack_s": 2.1,
+      "checkpoint_mb": 4.0,
+      "upload_s_at_measured_rate": 0.034995051582326034,
+      "ack_minus_upload_s": 2.0650049484176742
+    },
+    "drill-big": {
+      "ack_s": 34.333,
+      "checkpoint_mb": 2048.0,
+      "upload_s_at_measured_rate": 17.91746641015093,
+      "ack_minus_upload_s": 16.41553358984907
+    }
+  },
+  "slowdown_impact": [
+    {
+      "C": 10.0,
+      "slowdown_direct": 1.162132864923735,
+      "slowdown_handshake": 1.1628821415692183,
+      "added_pct": 0.0644742669361209
+    },
+    {
+      "C": 60.0,
+      "slowdown_direct": 1.1729422624125903,
+      "slowdown_handshake": 1.1737055470187217,
+      "added_pct": 0.0650743545177912
+    },
+    {
+      "C": 300.0,
+      "slowdown_direct": 1.2277572670075905,
+      "slowdown_handshake": 1.2285935850546794,
+      "added_pct": 0.06811753997004732
+    }
+  ],
+  "sigterm_budget": {
+    "kubernetes default grace (30 s)": {
+      "seconds": 30.0,
+      "max_checkpoint_gb": 3.429056240071526,
+      "max_params_billion": 0.28575468667262716
+    },
+    "our manifests (90 s)": {
+      "seconds": 90.0,
+      "max_checkpoint_gb": 10.287168720214577,
+      "max_params_billion": 0.8572640600178815
+    },
+    "the whole 2-minute notice (120 s)": {
+      "seconds": 120.0,
+      "max_checkpoint_gb": 13.716224960286103,
+      "max_params_billion": 1.1430187466905086
+    }
+  },
+  "models": [
+    {
+      "model": "ResNet-50",
+      "params": 25600000.0,
+      "flush_s": 2.687619961522639,
+      "kubernetes default grace (30 s)": true,
+      "our manifests (90 s)": true,
+      "the whole 2-minute notice (120 s)": true
+    },
+    {
+      "model": "BERT-large",
+      "params": 340000000.0,
+      "flush_s": 35.69495261397255,
+      "kubernetes default grace (30 s)": false,
+      "our manifests (90 s)": true,
+      "the whole 2-minute notice (120 s)": true
+    },
+    {
+      "model": "1.3B LLM",
+      "params": 1300000000.0,
+      "flush_s": 136.48070117107153,
+      "kubernetes default grace (30 s)": false,
+      "our manifests (90 s)": false,
+      "the whole 2-minute notice (120 s)": false
+    },
+    {
+      "model": "7B LLM",
+      "params": 7000000000.0,
+      "flush_s": 734.8960832288467,
+      "kubernetes default grace (30 s)": false,
+      "our manifests (90 s)": false,
+      "the whole 2-minute notice (120 s)": false
+    }
+  ]
+}
