@@ -149,7 +149,8 @@ def main():
                  trained_on=dict(steps=len(d), positives=int(d.label.sum()), regions=sorted(d.region.unique()),
                                  days=sorted(str(x) for x in d.day.unique())),
                  note="P(reclaim within 15 min | AWS placement score, instance age in minutes), sensor campaign "
-                      "13-14 Oct 2026; small instances only, see docs/wide_model_result.md Section 7b")
+                      f"on {', '.join(sorted(str(x) for x in d.day.unique()))}; small instances only, see "
+                      "docs/wide_model_result.md Section 7b and ml/model/wide_results/reclaim_quality.json")
     os.makedirs(os.path.join(HERE, "final"), exist_ok=True)
     json.dump(model, open(os.path.join(HERE, "final", "capacity_model.json"), "w"), indent=1)
     json.dump(out, open(os.path.join(W, "real_label_model.json"), "w"), indent=1, default=float)

@@ -68,5 +68,5 @@
    "2026-10-25"
   ]
  },
- "note": "P(reclaim within 15 min | AWS placement score, instance age in minutes), sensor campaign 13-14 Oct 2026; small instances only, see docs/wide_model_result.md Section 7b"
+ "note": "P(reclaim within 15 min | AWS placement score, instance age in minutes), sensor campaign on 2026-10-13, 2026-10-14, 2026-10-25; small instances only, see docs/wide_model_result.md Section 7b and ml/model/wide_results/reclaim_quality.json"
 }
