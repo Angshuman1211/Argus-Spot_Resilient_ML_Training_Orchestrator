@@ -301,6 +301,25 @@ def main(args):
                 break
         need.append(dict(C=C, quality_needed=q_need))
     summ["quality_needed"] = need
+    # the predictors measured on REAL reclaims (ml/model/real_label_quality.py): recall, precision and lead
+    # distribution at a 10% alarm budget, put through the same formulas at the reference reclaim rate
+    rq = os.path.join(HERE, "..", "ml", "model", "wide_results", "reclaim_quality.json")
+    if os.path.exists(rq):
+        real = {}
+        for name, v in json.load(open(rq))["predictors"].items():
+            op = v.get("operating")
+            if not op:
+                continue
+            leads = np.asarray(op["leads_min"]) * 60.0
+            pts = []
+            for C in (60.0, 120.0, 300.0, 600.0, 1800.0):
+                pl_ = float((leads >= C).mean()) if len(leads) else 0.0
+                v_ = {"reactive": s_reactive(lam, W, C, R), "periodic": s_periodic(lam, C, R, best_tau(lam, C, R)),
+                      "predictor": s_predictor(lam, C, R, op["recall"], op["precision"], pl_),
+                      "hybrid": s_hybrid_best(lam, C, R, op["recall"], op["precision"], pl_)}
+                pts.append(dict(C=C, p_lead=pl_, best=min(v_, key=v_.get), **v_))
+            real[name] = dict(recall=op["recall"], precision=op["precision"], points=pts)
+        summ["real_reclaim_predictors"] = real
     with open(os.path.join(OUT, "summary.json"), "w") as f:
         json.dump(summ, f, indent=2)
 
