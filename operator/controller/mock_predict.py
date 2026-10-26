@@ -37,7 +37,18 @@ MOCK_RISK_START = float(os.environ.get("MOCK_RISK_START", "0.15"))
 MOCK_RISK_END = float(os.environ.get("MOCK_RISK_END", "0.90"))
 MOCK_RAMP_SECONDS = float(os.environ.get("MOCK_RAMP_SECONDS", "120"))
 
+# Comma list of instance types that get the mode's score; every other type gets MOCK_SAFE_SCORE. Empty means
+# all types are risky. Used to make one node of a multi-node (gang) job risky and leave the rest alone.
+MOCK_RISKY_TYPES = {t for t in os.environ.get("MOCK_RISKY_TYPES", "").split(",") if t}
+MOCK_SAFE_SCORE = float(os.environ.get("MOCK_SAFE_SCORE", "0.001"))
+
 _START_TS = time.monotonic()
+
+
+def _risk_for(instance_type: str) -> float:
+    if MOCK_RISKY_TYPES and instance_type not in MOCK_RISKY_TYPES:
+        return MOCK_SAFE_SCORE
+    return _current_risk()
 
 
 def _current_risk() -> float:
@@ -58,7 +69,7 @@ def predict(instance_type: str = "m5.large", az: str = "eu-north-1a"):
     return {
         "instance_type": instance_type,
         "az": az,
-        "risk_score": _current_risk(),
+        "risk_score": _risk_for(instance_type),
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
     }
 
@@ -70,7 +81,7 @@ def reclaim_risk(instance_type: str = "m5.large", az: str = "eu-north-1a", insta
         "instance_type": instance_type,
         "az": az,
         "instance_age_min": instance_age_min,
-        "reclaim_risk": _current_risk(),
+        "reclaim_risk": _risk_for(instance_type),
         "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
     }
 

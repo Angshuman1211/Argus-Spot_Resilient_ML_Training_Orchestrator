@@ -1,0 +1,4 @@
+NAME             STATUS                     ROLES           AGE     VERSION
+argus-gang       Ready                      control-plane   3m55s   v1.35.1
+argus-gang-m02   Ready,SchedulingDisabled   <none>          3m5s    v1.35.1
+argus-gang-m03   Ready                      <none>          2m20s   v1.35.1

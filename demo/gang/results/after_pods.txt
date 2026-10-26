@@ -1,0 +1,4 @@
+NAME         READY   STATUS    RESTARTS   AGE   IP           NODE             NOMINATED NODE   READINESS GATES
+gangtest-0   1/1     Running   0          18s   10.244.2.3   argus-gang-m03   <none>           <none>
+gangtest-1   1/1     Running   0          18s   10.244.0.5   argus-gang       <none>           <none>
+gangtest-2   1/1     Running   0          18s   10.244.2.4   argus-gang-m03   <none>           <none>

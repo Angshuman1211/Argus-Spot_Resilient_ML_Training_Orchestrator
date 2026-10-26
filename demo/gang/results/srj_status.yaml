@@ -1,0 +1,173 @@
+apiVersion: argus.io/v1
+kind: SpotResilientJob
+metadata:
+  annotations:
+    kopf.zalando.org/last-handled-configuration: |
+      {"spec":{"availabilityZone":"eu-north-1a","checkpointPath":"s3://argus-local/checkpoints/gangtest","gang":true,"image":"registry.k8s.io/pause:3.9","instanceFallback":["t-a"],"riskSignal":"price","riskThreshold":0.5}}
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"argus.io/v1","kind":"SpotResilientJob","metadata":{"annotations":{},"name":"gangtest","namespace":"default"},"spec":{"checkpointPath":"s3://argus-local/checkpoints/gangtest","gang":true,"image":"registry.k8s.io/pause:3.9","instanceFallback":["t-a"],"riskSignal":"price","riskThreshold":0.5}}
+  creationTimestamp: "2026-10-26T11:24:59Z"
+  finalizers:
+  - kopf.zalando.org/KopfFinalizerMarker
+  generation: 1
+  name: gangtest
+  namespace: default
+  resourceVersion: "909"
+  uid: b630f813-3855-45e2-9bdd-630090ff9451
+spec:
+  availabilityZone: eu-north-1a
+  checkpointPath: s3://argus-local/checkpoints/gangtest
+  gang: true
+  image: registry.k8s.io/pause:3.9
+  instanceFallback:
+  - t-a
+  riskSignal: price
+  riskThreshold: 0.5
+status:
+  lastCheckpointStep: 1
+  lastMigrationAt: 1.7930139139527216e+09
+  lastRiskScore: 0.001
+  phase: Running
+  podSnapshots:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: |
+          {"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"labels":{"argus.io/job":"gangtest"},"name":"gangtest-0","namespace":"default"},"spec":{"affinity":{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"argus.io/job":"gangtest"}},"topologyKey":"kubernetes.io/hostname"},"weight":100}]}},"containers":[{"image":"registry.k8s.io/pause:3.9","name":"member"}],"restartPolicy":"Never","terminationGracePeriodSeconds":5}}
+      labels:
+        argus.io/job: gangtest
+        topology.kubernetes.io/zone: local-a
+      name: gangtest-0
+      namespace: default
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  argus.io/job: gangtest
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - image: registry.k8s.io/pause:3.9
+        imagePullPolicy: IfNotPresent
+        name: member
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts: []
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: true
+      preemptionPolicy: PreemptLowerPriority
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      tolerations:
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+        tolerationSeconds: 300
+      - effect: NoExecute
+        key: node.kubernetes.io/unreachable
+        operator: Exists
+        tolerationSeconds: 300
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: |
+          {"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"labels":{"argus.io/job":"gangtest"},"name":"gangtest-1","namespace":"default"},"spec":{"affinity":{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"argus.io/job":"gangtest"}},"topologyKey":"kubernetes.io/hostname"},"weight":100}]}},"containers":[{"image":"registry.k8s.io/pause:3.9","name":"member"}],"restartPolicy":"Never","terminationGracePeriodSeconds":5}}
+      labels:
+        argus.io/job: gangtest
+        topology.kubernetes.io/zone: local-a
+      name: gangtest-1
+      namespace: default
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  argus.io/job: gangtest
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - image: registry.k8s.io/pause:3.9
+        imagePullPolicy: IfNotPresent
+        name: member
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts: []
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: true
+      preemptionPolicy: PreemptLowerPriority
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      tolerations:
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+        tolerationSeconds: 300
+      - effect: NoExecute
+        key: node.kubernetes.io/unreachable
+        operator: Exists
+        tolerationSeconds: 300
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/last-applied-configuration: |
+          {"apiVersion":"v1","kind":"Pod","metadata":{"annotations":{},"labels":{"argus.io/job":"gangtest"},"name":"gangtest-2","namespace":"default"},"spec":{"affinity":{"podAntiAffinity":{"preferredDuringSchedulingIgnoredDuringExecution":[{"podAffinityTerm":{"labelSelector":{"matchLabels":{"argus.io/job":"gangtest"}},"topologyKey":"kubernetes.io/hostname"},"weight":100}]}},"containers":[{"image":"registry.k8s.io/pause:3.9","name":"member"}],"restartPolicy":"Never","terminationGracePeriodSeconds":5}}
+      labels:
+        argus.io/job: gangtest
+        topology.kubernetes.io/zone: local-a
+      name: gangtest-2
+      namespace: default
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  argus.io/job: gangtest
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      containers:
+      - image: registry.k8s.io/pause:3.9
+        imagePullPolicy: IfNotPresent
+        name: member
+        resources: {}
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts: []
+      dnsPolicy: ClusterFirst
+      enableServiceLinks: true
+      preemptionPolicy: PreemptLowerPriority
+      restartPolicy: Never
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: default
+      serviceAccountName: default
+      terminationGracePeriodSeconds: 5
+      tolerations:
+      - effect: NoExecute
+        key: node.kubernetes.io/not-ready
+        operator: Exists
+        tolerationSeconds: 300
+      - effect: NoExecute
+        key: node.kubernetes.io/unreachable
+        operator: Exists
+        tolerationSeconds: 300
+  retryCount: 0

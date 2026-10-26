@@ -1,0 +1,18 @@
+# Local check of the operator's gang mode (spec.gang: true) against a real API server, no AWS needed.
+# Three placeholder pods form one synchronous job; demo/gang/run_local_check.sh starts a 3-node minikube,
+# a moto S3 server and the mock predictor (only instance type t-b is risky), runs the operator, and checks
+# that one flush request covers the job, only the risky node is cordoned, and all three pods come back
+# off it. The pause container cannot acknowledge a flush, so the operator logs "not confirmed" and moves on,
+# which is the path a real job takes when its SIGTERM handler has to do the flush.
+apiVersion: argus.io/v1
+kind: SpotResilientJob
+metadata:
+  name: gangtest
+  namespace: default
+spec:
+  image: registry.k8s.io/pause:3.9
+  checkpointPath: s3://argus-local/checkpoints/gangtest
+  riskThreshold: 0.5
+  riskSignal: price
+  instanceFallback: [t-a]
+  gang: true

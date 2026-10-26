@@ -1,0 +1,4 @@
+NAME             STATUS   ROLES           AGE     VERSION
+argus-gang       Ready    control-plane   4m11s   v1.35.1
+argus-gang-m02   Ready    <none>          3m21s   v1.35.1
+argus-gang-m03   Ready    <none>          2m36s   v1.35.1
