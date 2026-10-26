@@ -29,7 +29,7 @@ queue mode, Helm chart in `helm/argus`.
 ## Tests
 
 ```bash
-"C:\Program Files\Python311\python.exe" -m pytest -q tests      # 102 pass, 1 skipped (mlflow)
+"C:\Program Files\Python311\python.exe" -m pytest -q tests      # 104 pass, 1 skipped (mlflow)
 ```
 
 ## Results, the command that makes each, and where it lands
