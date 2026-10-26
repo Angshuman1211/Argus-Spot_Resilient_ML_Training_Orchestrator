@@ -45,7 +45,10 @@ Seeds are fixed in each script (benchmark seed 7, bootstrap seed 0).
 | Idealized predictor sweep | `python run_trace_benchmark.py --trace traces/trace_scores_new.csv.gz --out-dir results/trace_oct_new --arms-prefix synthetic_yd --tag synth` | `results/trace_oct_new/summary_synth.csv` |
 | Paired day intervals | from the repo root: `python benchmark/recompute_ci.py --test results/trace_oct_new --calib results/trace_oct_new_calib` | `results/trace_oct_new/paired_day_ci.csv` |
 | Other regions | from the repo root: `python benchmark/summarize_regions.py` | `results/regions_summary.csv` |
-| Dollar cost per policy | `python cost_table.py` | `results/trace_oct_new/cost.csv` |
+| Every metric per arm (completion with Wilson interval, waste, checkpoints, false migrations) | `python run_trace_benchmark.py --trace traces/trace_scores_new.csv.gz --out-dir results/trace_oct_new --only-sets N15 --arms-prefix none,reactive,periodic_1h,young_daly,model_migrate_q0.1,hybrid_yd_model_migrate_q0.1,oracle --tag metrics` | `results/trace_oct_new/summary_metrics.csv` |
+| Lead rule (oracle at 5/10/15 min, checkpoints 60 to 1200 s) | `python run_trace_benchmark.py --trace traces/trace_scores_new.csv.gz --out-dir results/trace_oct_new --only-sets N15 --arms-prefix oracle,young_daly,reactive,model_migrate_q0.1 --ckpt-s 60 120 300 600 900 1200 --tag leadrule` | `results/trace_oct_new/summary_leadrule.csv` |
+| Dollar cost per policy | `python cost_table.py` (after the metrics run) | `results/trace_oct_new/cost.csv` |
+| What the sensor fleet cost | from the repo root: `python scripts/experiment_cost.py` | `ml/data/real/sensor_cost.json` |
 | Analytic model, validation, decision maps | `python analytic_model.py` | `results/analytic/summary.json`, `validation.csv`, `map_*.csv` |
 | Multi-node exposure check | `python exposure.py` | `results/analytic/exposure.json` |
 | Flush handshake cost, SIGTERM grace period | `python handshake_grace.py` | `results/analytic/handshake_grace.json` |

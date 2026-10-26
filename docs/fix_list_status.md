@@ -25,6 +25,24 @@ Each fix from the external review (F1 to F19) with where it is done. Paper text 
 | F18 | Flush-marker ablation, grace period check | done (measured, not a second implementation) | `benchmark/handshake_grace.py`, `results/analytic/handshake_grace.json`: the handshake adds 3.5 s on average, under 0.07% of job time; 30 s default grace covers about 0.29B parameters. `train.py` warns when a save would not fit. A direct in-operator checkpoint was not built |
 | F19 | $190 example, define the interval behind p, makespan note | done | example removed; p is now per hour; the makespan issue no longer applies (every run completes) |
 
+## Rest of the review (minor issues, Section 7 metrics, Section 8 framing)
+
+| Item | Status | Evidence |
+|---|---|---|
+| Abstract wording | done | rewritten: problem, method, findings, negative result |
+| $190 example, undefined interval, conflated leads, epoch 7/8 wording | done | all removed or fixed in the v2 text |
+| Plus-minus values defined | done | every interval is a 95% interval resampled by whole days or hours |
+| Screenshots (Figures 3 and 5 of v1) | done | removed; all figures are generated from result files |
+| Code and data statement, software versions, threats to validity | done | paper statement, `ARTIFACT.md`, "Limitations and threats to validity" |
+| AWS cost of the experiments | partly | sensor fleet: 345 instances, 450 instance-hours, under $38 at On-Demand list prices (`ml/data/real/sensor_cost.json`); the EKS cluster's bill is on the suspended account |
+| Author name renders as MD Rayyan | done | checked in the compiled PDF |
+| References: more than 14, AWS pages with access dates | done | 28 entries, every AWS page has a URL or an access date; not archived on archive.org |
+| Metrics in every experiment: completion with Wilson interval, waste, checkpoints, false migrations, cost | done | `results/trace_oct_new/summary_metrics.csv` (every policy finishes all 59 runs, Wilson lower bound 0.94; the model makes 12.7 moves per job, 9.8 of them false) |
+| Oracle at several leads, lead rule tested across checkpoint sizes (E3) | done | `summary_leadrule.csv`: an oracle with lead L protects only while C <= L, 18 of 18 cells agree with the analytic rule |
+| Decision map (E5) | done | `results/analytic/map_*.csv`, figure in the paper |
+| Trace replay of real reclaims inside the simulator (E2, second half) | not possible | sensors live minutes, so there is no continuous reclaim trace for a 12-hour job; the real predictors enter through the analytic model with their measured recall, precision and lead |
+| Venue, page limit, arXiv v2, a cold read by an outsider | your decision | the body is about 9 pages; a 4-page workshop needs cuts |
+
 ## Not doable now
 
 - **F9 EKS campaign and FIS reclaim**, and a **multi-node GPU training run** for F12: both need EC2 in an AWS
